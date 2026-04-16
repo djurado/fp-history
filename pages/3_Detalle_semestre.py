@@ -83,10 +83,11 @@ def load_topic_max_map_for_semester(semester_name: str) -> dict[str, float]:
 
     max_row = metadata_df.iloc[0]
     topic_max_map: dict[str, float] = {}
-    pattern = re.compile(r"^TEMA\s+\d+[A-Z]-\d+$")
+    pattern = re.compile(r"^TEMA\s+\d+[A-Z]-\d+.*$")
 
     for col in metadata_df.columns:
-        if not pattern.match(str(col)):
+        col_name = str(col).strip().upper()
+        if not pattern.match(col_name):
             continue
 
         value = max_row.get(col)
@@ -94,11 +95,13 @@ def load_topic_max_map_for_semester(semester_name: str) -> dict[str, float]:
             continue
 
         try:
-            topic_max_map[str(col)] = float(value)
+            base_topic = extract_topic_base(col_name)
+            topic_max_map[base_topic] = topic_max_map.get(base_topic, 0.0) + float(value)
         except Exception:
             continue
 
     return topic_max_map
+
 
 @st.cache_data
 def load_practical_max_map_for_semester(semester_name: str) -> dict[str, float]:
@@ -143,6 +146,20 @@ def load_available_datasets() -> list[Path]:
 def extract_semester_name(path: Path) -> str:
     return path.stem.replace("estadisticas_FP_", "")
 
+def extract_topic_base(topic_column: str) -> str:
+    normalized = str(topic_column).strip().upper()
+    match = re.match(r"^(TEMA\s+\d+[A-Z]-\d+)", normalized)
+    return match.group(1) if match else normalized
+
+
+def group_topic_columns_by_base(columns: list[str]) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {}
+
+    for column in columns:
+        base_topic = extract_topic_base(column)
+        grouped.setdefault(base_topic, []).append(column)
+
+    return dict(sorted(grouped.items()))
 
 def get_dataset_map() -> dict[str, Path]:
     return {extract_semester_name(path): path for path in load_available_datasets()}
@@ -448,12 +465,12 @@ def render_topics(df: pd.DataFrame, semester: str) -> None:
 
     topic_max = load_topic_max_map_for_semester(semester)
 
-    topic_columns = [col for col in df.columns if re.match(r"^TEMA", str(col))]
+    topic_columns = [col for col in df.columns if re.match(r"^TEMA", str(col).strip().upper())]
     if not topic_columns:
         st.caption("No hay columnas de temas en este semestre.")
         return
 
-    exams = sorted(set(re.search(r"\d+[A-Z]", col).group() for col in topic_columns))
+    exams = sorted(set(re.search(r"\d+[A-Z]", str(col).upper()).group() for col in topic_columns))
 
     selected_exam = st.radio(
         "Examen",
@@ -475,14 +492,21 @@ def render_topics(df: pd.DataFrame, semester: str) -> None:
         exam_avg = float(exam_series.mean()) if not exam_series.empty else 0.0
         rows.append(("PROMEDIO DEL EXAMEN", exam_avg, 100.0))
 
-    for col in topic_columns:
-        if selected_exam not in col:
-            continue
+    selected_topic_columns = [col for col in topic_columns if selected_exam in str(col).upper()]
+    topic_groups = group_topic_columns_by_base(selected_topic_columns)
 
-        series = df.loc[mask, col].dropna()
-        avg = float(series.mean()) if not series.empty else 0.0
-        max_value = float(topic_max.get(col, 100.0))
-        rows.append((col, avg, max_value))
+    for base_topic, base_columns in topic_groups.items():
+        topic_totals = df.loc[mask, base_columns].fillna(0).sum(axis=1)
+        avg = float(topic_totals.mean()) if not topic_totals.empty else 0.0
+
+        metadata_max = topic_max.get(base_topic)
+        if metadata_max is not None:
+            max_value = float(metadata_max)
+        else:
+            observed_max = topic_totals.max() if not topic_totals.empty else 0.0
+            max_value = float(observed_max) if pd.notna(observed_max) and observed_max > 0 else 100.0
+
+        rows.append((base_topic, avg, max_value))
 
     chart_df = pd.DataFrame(rows, columns=["Elemento", "Promedio", "Maximo"])
     if chart_df.empty:
@@ -546,7 +570,8 @@ def render_topics(df: pd.DataFrame, semester: str) -> None:
 
     fig.update_yaxes(range=[0, 110], ticksuffix="%")
     st.plotly_chart(fig, width="stretch")
-
+    
+    
 def main() -> None:
     st.title("Detalle de semestre")
     render_page_legend()
