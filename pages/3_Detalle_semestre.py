@@ -147,6 +147,18 @@ def extract_semester_name(path: Path) -> str:
 def get_dataset_map() -> dict[str, Path]:
     return {extract_semester_name(path): path for path in load_available_datasets()}
 
+def get_default_semester(dataset_map: dict[str, Path]) -> str:
+    available_semesters = sorted(dataset_map.keys(), reverse=True)
+
+    selected_year = st.session_state.get("selected_year")
+    selected_term = st.session_state.get("selected_term")
+
+    if selected_year is not None and selected_term is not None:
+        candidate = f"{selected_year}-{selected_term}"
+        if candidate in dataset_map:
+            return candidate
+
+    return available_semesters[0]
 
 def valid_exam_mask(df: pd.DataFrame, exam_key: str) -> pd.Series:
     status_col = f"ESTADO {exam_key}"
@@ -544,7 +556,17 @@ def main() -> None:
         st.warning("No hay datasets disponibles. Primero genera un consolidado.")
         return
 
-    selected_semester = st.sidebar.selectbox("Semestre", sorted(dataset_map.keys(), reverse=True))
+    available_semesters = sorted(dataset_map.keys(), reverse=True)
+    default_semester = get_default_semester(dataset_map)
+
+    selected_semester = st.sidebar.selectbox(
+        "Semestre",
+        available_semesters,
+        index=available_semesters.index(default_semester),
+    )
+    selected_year_str, selected_term_str = selected_semester.split("-")
+    st.session_state.selected_year = int(selected_year_str)
+    st.session_state.selected_term = int(selected_term_str)
     df = load_data(dataset_map[selected_semester])
 
     career_options = sorted(df["CARRERA"].dropna().astype(str).unique()) if "CARRERA" in df.columns else []

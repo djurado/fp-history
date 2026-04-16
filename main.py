@@ -29,19 +29,36 @@ def _current_files_key(uploaded_files: list) -> tuple:
 col_year, col_term = st.columns(2)
 
 with col_year:
+    year_options = list(range(MIN_YEAR, MAX_YEAR + 1))
     current_year = datetime.now().year
-    default_year_index = max(0, min(current_year, MAX_YEAR) - MIN_YEAR)
+
+    default_year = st.session_state.get(
+        "selected_year",
+        max(MIN_YEAR, min(current_year, MAX_YEAR)),
+    )
+
+    default_year_index = year_options.index(default_year) if default_year in year_options else 0
+
     year = st.selectbox(
         "Año",
-        options=list(range(MIN_YEAR, MAX_YEAR + 1)),
+        options=year_options,
         index=default_year_index,
     )
 
 with col_term:
+    term_options = list(VALID_TERMS)
+
+    default_term = st.session_state.get(
+        "selected_term",
+        1 if 1 in term_options else term_options[0],
+    )
+
+    default_term_index = term_options.index(default_term) if default_term in term_options else 0
+
     term = st.selectbox(
         "Semestre",
-        options=list(VALID_TERMS),
-        index=1 if 1 in VALID_TERMS else 0,
+        options=term_options,
+        index=default_term_index,
     )
 
 st.session_state.selected_year = year

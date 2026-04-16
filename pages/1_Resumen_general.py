@@ -45,14 +45,34 @@ def get_dataset_map() -> dict[str, Path]:
     return {extract_semester_name(file_path): file_path for file_path in datasets}
 
 
+def get_default_semester(dataset_map: dict[str, Path]) -> str:
+    available_semesters = sorted(dataset_map.keys(), reverse=True)
+
+    selected_year = st.session_state.get("selected_year")
+    selected_term = st.session_state.get("selected_term")
+
+    if selected_year is not None and selected_term is not None:
+        candidate = f"{selected_year}-{selected_term}"
+        if candidate in dataset_map:
+            return candidate
+
+    return available_semesters[0]
+
 def render_sidebar(dataset_map: dict[str, Path]) -> tuple[str, list[str], list, list[str], list[str]]:
     with st.sidebar:
         st.header("Filtros")
 
+        available_semesters = sorted(dataset_map.keys(), reverse=True)
+        default_semester = get_default_semester(dataset_map)
+
         selected_semester = st.selectbox(
             "Semestre",
-            options=sorted(dataset_map.keys(), reverse=True),
+            options=available_semesters,
+            index=available_semesters.index(default_semester),
         )
+        selected_year_str, selected_term_str = selected_semester.split("-")
+        st.session_state.selected_year = int(selected_year_str)
+        st.session_state.selected_term = int(selected_term_str)
 
     df = load_data(dataset_map[selected_semester]).copy()
 
