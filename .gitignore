@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+**/__pycache__/
 *.pyc
 .vscode/
 # Entorno virtual
@@ -7,13 +7,8 @@ venv/
 .env/
 .env.*
 
-# Datos (NO subir)
-datasets/*
-metadata/*
-
 # Pero mantener las carpetas
-!datasets/.gitkeep
-!metadata/.gitkeep
-
+!src/transform/2025_2T/.gitkeep
+!src/transform/consolidados/.gitkeep
 # Sistema
 .DS_Store
