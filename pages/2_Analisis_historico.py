@@ -279,7 +279,19 @@ def render_historical_state_chart(grouped: pd.DataFrame) -> None:
 
     fig.update_yaxes(ticksuffix="%")
 
-    st.plotly_chart(fig, width="stretch")
+    event = st.plotly_chart(
+        fig,
+        width="stretch",
+        key="historical_state_chart",
+        on_select="rerun",
+        selection_mode="points",
+    )
+
+    if event and event.selection.points:
+        selected_semester = event.selection.points[0]["x"]
+        st.session_state.selected_year = int(selected_semester.split("-")[0])
+        st.session_state.selected_term = int(selected_semester.split("-")[1])
+        st.switch_page("pages/1_Resumen_general.py")
 
 def render_historical_state_table(grouped: pd.DataFrame) -> None:
     with st.expander("Detalle por semestre y estado", expanded=False):
