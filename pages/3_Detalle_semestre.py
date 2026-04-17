@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import unicodedata
 
 import pandas as pd
 import plotly.express as px
@@ -44,6 +45,41 @@ TOPIC_COLORS = [
     "#BDE0FE",
     "#D7C5F2",
 ]
+
+
+VALID_KNOWLEDGES = {
+    "STRINGS",
+    "LISTAS",
+    "FUNCIONES",
+    "IF / FOR",
+    "WHILE",
+    "TUPLAS",
+    "CONJUNTOS",
+    "DICCIONARIOS",
+    "NUMPY",
+    "ARCHIVOS",
+    "PANDAS",
+    "RANDOM",
+    "LOGICA Y DEPURACION",
+    "LOGICA",
+}
+
+KNOWLEDGE_LABEL_FIXES = {
+    "LOGICA Y DEPURACION": "Lógica",
+    "LOGICA": "Lógica",
+    "IF / FOR": "If / For",
+    "WHILE": "While",
+    "STRINGS": "Strings",
+    "LISTAS": "Listas",
+    "FUNCIONES": "Funciones",
+    "TUPLAS": "Tuplas",
+    "CONJUNTOS": "Conjuntos",
+    "DICCIONARIOS": "Diccionarios",
+    "NUMPY": "Numpy",
+    "ARCHIVOS": "Archivos",
+    "PANDAS": "Pandas",
+    "RANDOM": "Random",
+}
 
 
 @st.cache_data
@@ -139,6 +175,78 @@ def load_practical_max_map_for_semester(semester_name: str) -> dict[str, float]:
 
     return result
 
+
+# --- Helper functions for knowledge extraction ---
+
+def normalize_knowledge_value(value: str) -> str:
+    text = str(value).strip()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    normalized = text.upper()
+
+    if normalized == "LOGICA Y DEPURACION":
+        normalized = "LOGICA"
+
+    return KNOWLEDGE_LABEL_FIXES.get(normalized, text.strip())
+
+
+@st.cache_data
+def load_topic_knowledge_map_for_semester(semester_name: str) -> dict[str, list[str]]:
+    sheet_name = f"{METADATA_SHEET_PREFIX}{semester_name.replace('-', '_')}"
+
+    try:
+        metadata_df = pd.read_excel(METADATA_FILE, sheet_name=sheet_name)
+    except Exception:
+        return {}
+
+    if metadata_df.empty or len(metadata_df) <= 1:
+        return {}
+
+    topic_columns = [
+        col for col in metadata_df.columns
+        if re.match(r"^TEMA\s+\d+[A-Z]-\d+.*$", str(col).strip().upper())
+    ]
+
+    knowledge_map: dict[str, list[str]] = {}
+
+    for col in topic_columns:
+        base_topic = extract_topic_base(col)
+        values = metadata_df[col].iloc[1:].dropna().tolist()
+
+        collected: list[str] = knowledge_map.get(base_topic, []).copy()
+
+        for value in values:
+            value_str = str(value).strip()
+            if not value_str:
+                continue
+
+            raw_normalized = unicodedata.normalize("NFKD", value_str)
+            raw_normalized = "".join(ch for ch in raw_normalized if not unicodedata.combining(ch)).upper()
+
+            if raw_normalized == "LOGICA Y DEPURACION":
+                raw_normalized = "LOGICA"
+
+            if raw_normalized not in VALID_KNOWLEDGES:
+                continue
+
+            normalized_value = KNOWLEDGE_LABEL_FIXES.get(raw_normalized, value_str.strip())
+            if normalized_value not in collected:
+                collected.append(normalized_value)
+
+            if len(collected) == 2:
+                break
+
+        if collected:
+            knowledge_map[base_topic] = collected[:2]
+
+    return knowledge_map
+
+
+def format_knowledge_list(knowledge_items: list[str]) -> str:
+    if not knowledge_items:
+        return ""
+    return "<br>".join(knowledge_items[:2])
+
 def load_available_datasets() -> list[Path]:
     return sorted(DATASETS_PATH.glob("estadisticas_FP_*.xlsx"))
 
@@ -197,14 +305,17 @@ def mean_exam(df: pd.DataFrame, col: str, exam: str) -> float:
     return float(series.mean()) if not series.empty else 0.0
 
 
+# --- Helper function: component_to_exam ---
+def component_to_exam(component_name: str) -> str | None:
+    mapping = {
+        "PARCIAL": "1E",
+        "FINAL": "2E",
+        "MEJORAMIENTO": "3E",
+    }
+    return mapping.get(str(component_name).strip().upper())
+
 def find_review_columns(df: pd.DataFrame) -> list[str]:
     return [col for col in df.columns if str(col).startswith("REVISADO_X_ESTUDIANTE")]
-
-
-def render_page_legend() -> None:
-    st.info(
-        "Los promedios teóricos y por tema se calculan solo con estudiantes que sí dieron el examen."
-    )
 
 
 def apply_filters(
@@ -231,7 +342,7 @@ def apply_filters(
     return filtered_df
 
 def render_main_metrics(df: pd.DataFrame, semester: str) -> None:
-    st.subheader(f"Indicadores principales del semestre: {semester}")
+    st.subheader(f"Indicadores principales:")
 
     metrics = []
 
@@ -289,7 +400,7 @@ def render_main_metrics(df: pd.DataFrame, semester: str) -> None:
 
 
 def render_totals(df: pd.DataFrame) -> None:
-    st.subheader("Totales principales (%)")
+    st.subheader("Totales principales")
 
     rows = []
     for col in ["TOTAL TEORICO", "PRACTICO", "NOTA FINAL"]:
@@ -327,7 +438,6 @@ def render_totals(df: pd.DataFrame) -> None:
         marker_line_width=0,
         hovertemplate=(
             "Componente: %{x}<br>"
-            "Promedio bruto: %{customdata[0]:.2f}<br>"
             "Porcentaje: %{customdata[1]:.2f}%<extra></extra>"
         ),
     )
@@ -343,8 +453,7 @@ def render_totals(df: pd.DataFrame) -> None:
 
 
 def render_theory(df: pd.DataFrame) -> None:
-    st.subheader("Componentes teóricos (%)")
-
+    st.subheader("Componentes teóricos", help="Los promedios se calculan solo con estudiantes que sí dieron el examen.")
     rows = []
 
     if "TOTAL TEORICO" in df.columns:
@@ -373,7 +482,7 @@ def render_theory(df: pd.DataFrame) -> None:
         color="Componente",
         text=chart_df["Porcentaje"].map(lambda x: f"{x:.1f}%"),
         color_discrete_map={row["Componente"]: row["Color"] for _, row in chart_df.iterrows()},
-        custom_data=["Promedio", "Porcentaje"],
+        custom_data=["Componente", "Promedio", "Porcentaje"],
         opacity=0.85,
     )
 
@@ -382,9 +491,9 @@ def render_theory(df: pd.DataFrame) -> None:
         cliponaxis=False,
         marker_line_width=0,
         hovertemplate=(
-            "Componente: %{x}<br>"
-            "Promedio bruto: %{customdata[0]:.2f}<br>"
-            "Porcentaje: %{customdata[1]:.2f}%<extra></extra>"
+            "Componente: %{customdata[0]}<br>"
+            "Promedio bruto: %{customdata[1]:.2f}<br>"
+            "Porcentaje: %{customdata[2]:.2f}%<extra></extra>"
         ),
     )
 
@@ -395,11 +504,25 @@ def render_theory(df: pd.DataFrame) -> None:
     )
 
     fig.update_yaxes(range=[0, 110], ticksuffix="%")
-    st.plotly_chart(fig, width="stretch")
+
+    event = st.plotly_chart(
+        fig,
+        width="stretch",
+        key="theory_components_chart",
+        on_select="rerun",
+        selection_mode="points",
+    )
+
+    if event and event.selection.points:
+        selected_component = event.selection.points[0]["customdata"][0]
+        selected_exam = component_to_exam(selected_component)
+        if selected_exam is not None:
+            st.session_state.selected_exam_detail = selected_exam
+            st.session_state.topics_expander_expanded = True
 
 
 def render_practical(df: pd.DataFrame, semester: str) -> None:
-    st.subheader("Componentes prácticos (%)")
+    st.subheader("Componentes prácticos")
 
     practical_max_map = load_practical_max_map_for_semester(semester)
 
@@ -460,10 +583,8 @@ def render_practical(df: pd.DataFrame, semester: str) -> None:
     st.plotly_chart(fig, width="stretch")
 
 def render_topics(df: pd.DataFrame, semester: str) -> None:
-    st.subheader("Promedio por tema (%)")
-    st.caption("Selecciona un examen para ver el promedio del examen y de cada tema normalizados por su puntaje máximo.")
-
     topic_max = load_topic_max_map_for_semester(semester)
+    topic_knowledge_map = load_topic_knowledge_map_for_semester(semester)
 
     topic_columns = [col for col in df.columns if re.match(r"^TEMA", str(col).strip().upper())]
     if not topic_columns:
@@ -472,109 +593,150 @@ def render_topics(df: pd.DataFrame, semester: str) -> None:
 
     exams = sorted(set(re.search(r"\d+[A-Z]", str(col).upper()).group() for col in topic_columns))
 
-    selected_exam = st.radio(
-        "Examen",
-        exams,
-        format_func=lambda x: f"{x} = {EXAM_LABELS[x]}",
-        horizontal=True,
+    # Determine selected exam from session state (set by theory chart clicks)
+    default_exam = st.session_state.get("selected_exam_detail")
+    if default_exam not in exams:
+        default_exam = exams[0]
+    selected_exam = default_exam
+    selected_exam_label = EXAM_LABELS.get(selected_exam, selected_exam)
+
+    if "topics_expander_expanded" not in st.session_state:
+        st.session_state.topics_expander_expanded = False
+
+    exp = st.expander(
+        f"Detalle por temas del examen: {selected_exam_label}",
+        expanded=st.session_state.topics_expander_expanded,
     )
-    st.markdown(f"**Gráfico del {selected_exam} = {EXAM_LABELS[selected_exam]}**")
+    with exp:
+        st.caption("💡 Para cambiar de examen, haz click sobre el componente teórico correspondiente en el gráfico de arriba.")
+    with exp:
+        rows = []
+        mask = valid_exam_mask(df, selected_exam)
 
-    rows = []
-    mask = valid_exam_mask(df, selected_exam)
+        exam_col = f"EXAMEN {selected_exam}"
+        if exam_col in df.columns:
+            exam_series = df.loc[mask, exam_col].dropna()
+            if selected_exam == "3E":
+                exam_series = exam_series[exam_series > 0]
 
-    exam_col = f"EXAMEN {selected_exam}"
-    if exam_col in df.columns:
-        exam_series = df.loc[mask, exam_col].dropna()
-        if selected_exam == "3E":
-            exam_series = exam_series[exam_series > 0]
+            exam_avg = float(exam_series.mean()) if not exam_series.empty else 0.0
+            rows.append(("PROMEDIO DEL EXAMEN", exam_avg, 100.0, ""))
 
-        exam_avg = float(exam_series.mean()) if not exam_series.empty else 0.0
-        rows.append(("PROMEDIO DEL EXAMEN", exam_avg, 100.0))
+        selected_topic_columns = [col for col in topic_columns if selected_exam in str(col).upper()]
+        topic_groups = group_topic_columns_by_base(selected_topic_columns)
 
-    selected_topic_columns = [col for col in topic_columns if selected_exam in str(col).upper()]
-    topic_groups = group_topic_columns_by_base(selected_topic_columns)
+        for base_topic, base_columns in topic_groups.items():
+            topic_totals = df.loc[mask, base_columns].fillna(0).sum(axis=1)
+            avg = float(topic_totals.mean()) if not topic_totals.empty else 0.0
 
-    for base_topic, base_columns in topic_groups.items():
-        topic_totals = df.loc[mask, base_columns].fillna(0).sum(axis=1)
-        avg = float(topic_totals.mean()) if not topic_totals.empty else 0.0
+            metadata_max = topic_max.get(base_topic)
+            if metadata_max is not None:
+                max_value = float(metadata_max)
+            else:
+                observed_max = topic_totals.max() if not topic_totals.empty else 0.0
+                max_value = float(observed_max) if pd.notna(observed_max) and observed_max > 0 else 100.0
 
-        metadata_max = topic_max.get(base_topic)
-        if metadata_max is not None:
-            max_value = float(metadata_max)
-        else:
-            observed_max = topic_totals.max() if not topic_totals.empty else 0.0
-            max_value = float(observed_max) if pd.notna(observed_max) and observed_max > 0 else 100.0
+            knowledge_text = format_knowledge_list(topic_knowledge_map.get(base_topic, []))
+            rows.append((base_topic, avg, max_value, knowledge_text))
 
-        rows.append((base_topic, avg, max_value))
+        chart_df = pd.DataFrame(rows, columns=["Elemento", "Promedio", "Maximo", "Conocimientos"])
+        if chart_df.empty:
+            st.caption("No hay datos para ese examen.")
+            return
 
-    chart_df = pd.DataFrame(rows, columns=["Elemento", "Promedio", "Maximo"])
-    if chart_df.empty:
-        st.caption("No hay datos para ese examen.")
-        return
+        chart_df["Porcentaje"] = chart_df["Promedio"] / chart_df["Maximo"] * 100
 
-    chart_df["Porcentaje"] = chart_df["Promedio"] / chart_df["Maximo"] * 100
+        chart_df["ElementoLabel"] = chart_df["Elemento"]
 
-    colors = []
-    topic_color_index = 0
-    for _, row in chart_df.iterrows():
-        if row["Elemento"] == "PROMEDIO DEL EXAMEN":
-            colors.append("#CDB4DB")
-        else:
-            colors.append(TOPIC_COLORS[topic_color_index % len(TOPIC_COLORS)])
-            topic_color_index += 1
+        chart_df["KnowledgeText"] = chart_df.apply(
+            lambda row: ""
+            if row["Elemento"] == "PROMEDIO DEL EXAMEN"
+            else (
+                str(row["Conocimientos"]).strip()
+                if str(row["Conocimientos"]).strip()
+                else "Sin conocimientos"
+            ),
+            axis=1,
+        )
+        chart_df["PercentText"] = chart_df["Porcentaje"].map(lambda x: f"{x:.1f}%")
 
-    chart_df["Color"] = colors
-    chart_df["LegendLabel"] = chart_df.apply(
-        lambda row: "Examen = 100"
-        if row["Elemento"] == "PROMEDIO DEL EXAMEN"
-        else f"{row['Elemento']}: máx {row['Maximo']:.0f}",
-        axis=1,
-    )
+        selected_topic_rows = chart_df[
+            chart_df["Elemento"] != "PROMEDIO DEL EXAMEN"
+        ][["Elemento", "Conocimientos"]].copy()
 
-    fig = px.bar(
-        chart_df,
-        x="Elemento",
-        y="Porcentaje",
-        color="LegendLabel",
-        text=chart_df["Porcentaje"].map(lambda x: f"{x:.1f}%"),
-        color_discrete_map={row["LegendLabel"]: row["Color"] for _, row in chart_df.iterrows()},
-        custom_data=["Promedio", "Maximo", "Porcentaje"],
-        opacity=0.85,
-    )
+        colors = []
+        topic_color_index = 0
+        for _, row in chart_df.iterrows():
+            if row["Elemento"] == "PROMEDIO DEL EXAMEN":
+                colors.append("#CDB4DB")
+            else:
+                colors.append(TOPIC_COLORS[topic_color_index % len(TOPIC_COLORS)])
+                topic_color_index += 1
 
-    fig.update_traces(
-        textposition="outside",
-        cliponaxis=False,
-        marker_line_width=0,
-        hovertemplate=(
-            "Elemento: %{x}<br>"
-            "Promedio: %{customdata[0]:.2f}<br>"
-            "Máximo: %{customdata[1]:.2f}<br>"
-            "Porcentaje: %{customdata[2]:.2f}%<extra></extra>"
-        ),
-    )
+        chart_df["Color"] = colors
+        chart_df["LegendLabel"] = chart_df.apply(
+            lambda row: "Examen = 100"
+            if row["Elemento"] == "PROMEDIO DEL EXAMEN"
+            else f"{row['Elemento']}: máx {row['Maximo']:.0f}",
+            axis=1,
+        )
 
-    fig.update_layout(
-        xaxis_title=f"{selected_exam} = {EXAM_LABELS[selected_exam]}",
-        yaxis_title="Porcentaje (%)",
-        legend_title_text="Puntajes máximos",
-        legend=dict(
-            orientation="v",
-            yanchor="top",
-            y=1,
-            xanchor="left",
-            x=1.02,
-        ),
-    )
+        fig = px.bar(
+            chart_df,
+            x="ElementoLabel",
+            y="Porcentaje",
+            color="LegendLabel",
+            text="PercentText",
+            color_discrete_map={row["LegendLabel"]: row["Color"] for _, row in chart_df.iterrows()},
+            custom_data=["Elemento", "Conocimientos", "Promedio", "Maximo", "Porcentaje"],
+            opacity=0.85,
+        )
 
-    fig.update_yaxes(range=[0, 110], ticksuffix="%")
-    st.plotly_chart(fig, width="stretch")
+        fig.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+            marker_line_width=0,
+            textfont=dict(size=11),
+            textangle=0,
+            hovertemplate=(
+                "Promedio: %{customdata[2]:.2f}<br>"
+                "Máximo: %{customdata[3]:.2f}<br>"
+                "Porcentaje: %{customdata[4]:.2f}%<extra></extra>"
+            ),
+        )
+        fig.add_scatter(
+            x=chart_df["ElementoLabel"],
+            y=chart_df["Porcentaje"] / 2,
+            mode="text",
+            text=chart_df["KnowledgeText"],
+            textposition="middle center",
+            textfont=dict(size=13),
+            hoverinfo="skip",
+            showlegend=False,
+        )
+
+        fig.update_layout(
+            xaxis_title=f"{selected_exam} = {selected_exam_label}",
+            uniformtext_minsize=12,
+            uniformtext_mode="hide",
+            yaxis_title="Porcentaje (%)",
+            legend_title_text=None,
+            showlegend=True,
+            legend=dict(
+                orientation="v",
+                yanchor="top",
+                y=1,
+                xanchor="left",
+                x=1,
+            ),
+        )
+
+        fig.update_yaxes( ticksuffix="%")
+        st.plotly_chart(fig, width="stretch")
     
     
 def main() -> None:
-    st.title("Detalle de semestre")
-    render_page_legend()
+    # Removed initial static title and legend.
 
     dataset_map = get_dataset_map()
     if not dataset_map:
@@ -589,9 +751,16 @@ def main() -> None:
         available_semesters,
         index=available_semesters.index(default_semester),
     )
+    st.title(f"Detalle de semestre: {selected_semester}")
     selected_year_str, selected_term_str = selected_semester.split("-")
     st.session_state.selected_year = int(selected_year_str)
     st.session_state.selected_term = int(selected_term_str)
+
+    if "selected_exam_detail" not in st.session_state:
+        st.session_state.selected_exam_detail = "1E"
+    if st.session_state.selected_exam_detail not in EXAM_LABELS:
+        st.session_state.selected_exam_detail = "1E"
+
     df = load_data(dataset_map[selected_semester])
 
     career_options = sorted(df["CARRERA"].dropna().astype(str).unique()) if "CARRERA" in df.columns else []
