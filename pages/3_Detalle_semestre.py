@@ -745,7 +745,7 @@ def main() -> None:
 
     available_semesters = sorted(dataset_map.keys(), reverse=True)
     default_semester = get_default_semester(dataset_map)
-
+    st.sidebar.header("Filtros")
     selected_semester = st.sidebar.selectbox(
         "Semestre",
         available_semesters,

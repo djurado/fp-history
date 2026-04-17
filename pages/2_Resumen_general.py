@@ -164,7 +164,7 @@ def build_state_distribution_df(filtered_df: pd.DataFrame) -> tuple[pd.Series, p
 
 
 def render_state_distribution_chart(state_df_plot: pd.DataFrame) -> None:
-    st.subheader("Distribución de estudiantes por estado")
+    st.subheader("Estudiantes por estado")
     fig = px.bar(
         state_df_plot,
         x="ESTADO_LABEL",
@@ -208,7 +208,7 @@ def render_state_distribution_table(state_counts: pd.Series, state_percent: pd.S
 
 
 def render_sit_distribution(filtered_df: pd.DataFrame) -> None:
-    st.subheader("Distribución por veces tomada")
+    st.subheader("Estudiantes por veces tomada")
 
     sit_counts = (
         filtered_df["SIT"]
@@ -253,8 +253,8 @@ def render_sit_distribution(filtered_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, width="stretch")
 
 
-def render_students_by_career_and_state(filtered_df: pd.DataFrame) -> list[str]:
-    st.subheader("Estudiantes por carrera")
+def render_students_by_career_and_state(filtered_df: pd.DataFrame, sort_order: str = "total") -> list[str]:
+    st.subheader("Estudiantes por carrera", help="Para ordenar por número de estudiantes, haz click en el gráfico de la izquierda.")
 
     grouped = (
         filtered_df.groupby(["CARRERA", "ESTADO"])
@@ -283,7 +283,23 @@ def render_students_by_career_and_state(filtered_df: pd.DataFrame) -> list[str]:
         lambda x: x[:20] + "..." if len(x) > 20 else x
     )
 
-    career_order = totals.sort_values("Total", ascending=False)["CARRERA_SHORT"].tolist()
+    if sort_order == "approved":
+        career_summary = (
+            filtered_df.groupby("CARRERA")
+            .agg(
+                Total=("ESTADO", "size"),
+                Aprobados=("ESTADO", lambda s: (s == "AP").sum()),
+            )
+            .reset_index()
+        )
+        career_summary["Porcentaje_AP"] = (
+            career_summary["Aprobados"] / career_summary["Total"] * 100
+        )
+        career_summary = career_summary.merge(totals[["CARRERA", "CARRERA_SHORT"]], on="CARRERA")
+        career_order = career_summary.sort_values("Porcentaje_AP", ascending=False)["CARRERA_SHORT"].tolist()
+    else:
+        career_order = totals.sort_values("Total", ascending=False)["CARRERA_SHORT"].tolist()
+    
     totals_sorted = totals.sort_values("Total", ascending=False)
 
     fig = px.bar(
@@ -306,15 +322,15 @@ def render_students_by_career_and_state(filtered_df: pd.DataFrame) -> list[str]:
         )
     )
 
-    fig.add_scatter(
-        x=totals_sorted["Total"],
-        y=totals_sorted["CARRERA_SHORT"],
-        mode="text",
-        text=totals_sorted["Total"],
-        textposition="middle right",
-        showlegend=False,
-        hoverinfo="skip",
-    )
+    # fig.add_scatter(
+    #     x=totals_sorted["Total"],
+    #     y=totals_sorted["CARRERA_SHORT"],
+    #     mode="text",
+    #     text=totals_sorted["Total"],
+    #     textposition="middle right",
+    #     showlegend=False,
+    #     hoverinfo="skip",
+    # )
 
     num_carreras = filtered_df["CARRERA"].nunique()
     dynamic_height = max(400, num_carreras * 25)
@@ -333,14 +349,25 @@ def render_students_by_career_and_state(filtered_df: pd.DataFrame) -> list[str]:
         ),
     )
 
-    st.plotly_chart(fig, width="stretch")
+    event = st.plotly_chart(
+        fig,
+        width="stretch",
+        key="students_by_career_chart",
+        on_select="rerun",
+        selection_mode="points",
+    )
+
+    if event and event.selection.points:
+        st.session_state.career_sort_order = "total"
+
     return career_order
 
 def render_approved_percentage_by_career(
     filtered_df: pd.DataFrame,
     career_order: list[str],
+    sort_order: str = "total",
 ) -> None:
-    st.subheader("Aprobados por carrera")
+    st.subheader("Aprobados por carrera", help="Para ordenar por porcentaje de aprobados, haz click en el gráfico de la derecha.")
 
     career_summary = (
         filtered_df.groupby("CARRERA")
@@ -358,6 +385,9 @@ def render_approved_percentage_by_career(
     career_summary["CARRERA_SHORT"] = career_summary["CARRERA"].astype(str).apply(
         lambda x: x[:20] + "..." if len(x) > 20 else x
     )
+
+    if sort_order == "approved":
+        career_order = career_summary.sort_values("Porcentaje_AP", ascending=False)["CARRERA_SHORT"].tolist()
 
     fig = px.bar(
         career_summary,
@@ -404,7 +434,16 @@ def render_approved_percentage_by_career(
         layer="below",
     )
 
-    st.plotly_chart(fig, width="stretch")
+    event = st.plotly_chart(
+        fig,
+        width="stretch",
+        key="approved_by_career_chart",
+        on_select="rerun",
+        selection_mode="points",
+    )
+
+    if event and event.selection.points:
+        st.session_state.career_sort_order = "approved"
 
 def main() -> None:
     st.title("Resumen general")
@@ -448,13 +487,16 @@ def main() -> None:
     
     render_state_distribution_table(state_counts, state_percent)
     
+    if "career_sort_order" not in st.session_state:
+        st.session_state.career_sort_order = "total"
+    
     col_left, col_right = st.columns(2)
 
     with col_left:
-        career_order = render_students_by_career_and_state(filtered_df)
+        career_order = render_students_by_career_and_state(filtered_df, st.session_state.career_sort_order)
 
     with col_right:
-        render_approved_percentage_by_career(filtered_df, career_order)
+        render_approved_percentage_by_career(filtered_df, career_order, st.session_state.career_sort_order)
     # 
 
 
