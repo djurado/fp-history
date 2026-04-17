@@ -6,10 +6,10 @@ import pandas as pd
 # =========================
 # CONFIGURACIÓN
 # =========================
-BASE_DATASETS_DIR = Path(".")
+BASE_DATASETS_DIR = Path("../../datasets/")
 INPUT_DIRS = [
     BASE_DATASETS_DIR / "2025_2T",
-    BASE_DATASETS_DIR / "consolidados",
+    BASE_DATASETS_DIR / "privados",
 ]
 
 # Rango de matrículas ficticias
@@ -77,18 +77,22 @@ def flatten_columns(columns):
 def find_column(df, target_name):
     """
     Busca una columna por coincidencia exacta o parcial.
+    Soporta columnas MultiIndex (dos niveles de cabecera).
     """
     target = target_name.strip().upper()
 
-    # Coincidencia exacta
     for col in df.columns:
-        if str(col).strip().upper() == target:
-            return col
-
-    # Coincidencia parcial
-    for col in df.columns:
-        if target in str(col).strip().upper():
-            return col
+        if isinstance(col, tuple):
+            # Buscar en cualquier nivel
+            for level in col:
+                if str(level).strip().upper() == target:
+                    return col
+                if target in str(level).strip().upper():
+                    return col
+        else:
+            col_str = str(col).strip().upper()
+            if col_str == target or target in col_str:
+                return col
 
     return None
 
@@ -149,8 +153,6 @@ def process_file(file_path, output_dir, matricula_mapping, available_numbers):
     # Leer Excel usando las 2 primeras filas como cabecera
     df = pd.read_excel(file_path, header=[0, 1])
 
-    # Aplanar cabeceras a una sola fila de nombres de columna
-    df.columns = flatten_columns(df.columns)
 
     # Cargar todo en un DataFrame
     df = df.copy()
@@ -187,7 +189,36 @@ def process_file(file_path, output_dir, matricula_mapping, available_numbers):
 
     # Guardar resultado
     output_path = output_dir / file_path.name
-    sampled_df.to_excel(output_path, index=False)
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+
+    # Determinar número de niveles de cabecera
+    header_levels = 2 if isinstance(df.columns, pd.MultiIndex) else 1
+
+    # Para carpeta 2025_2T mantener 2 niveles, para privados solo 1
+    if "2025_2T" in str(file_path.parent):
+        use_levels = 2
+    else:
+        use_levels = 1
+
+    # Escribir cabeceras manualmente
+    if isinstance(df.columns, pd.MultiIndex):
+        for level in range(use_levels):
+            row = []
+            for col in sampled_df.columns:
+                value = col[level] if level < len(col) else ""
+                row.append(value)
+            ws.append(row)
+    else:
+        ws.append(list(sampled_df.columns))
+
+    # Escribir datos (sin índice)
+    for row in sampled_df.itertuples(index=False):
+        ws.append(list(row))
+
+    wb.save(output_path)
 
     print(f"Guardado: {output_path} | Filas originales: {n_rows} | Filas muestra: {len(sampled_df)}")
 

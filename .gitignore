@@ -7,6 +7,10 @@ venv/
 .env/
 .env.*
 
+# Datasets privados
+datasets/privados/
+
+
 # Pero mantener las carpetas
 !src/transform/2025_2T/.gitkeep
 !src/transform/consolidados/.gitkeep
