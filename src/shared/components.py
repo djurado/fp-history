@@ -417,6 +417,19 @@ def render_students_by_career_and_state(
         ),
     )
 
+    # Agregar anotaciones con el total de estudiantes por carrera
+    for career in career_order:
+        total = totals[totals['CARRERA_SHORT'] == career]['Total'].values[0]
+        fig.add_annotation(
+            x=total,
+            y=career,
+            text=f'{total}',
+            showarrow=False,
+            xanchor='left',
+            xshift=5,
+            font=dict(size=10, color='black')
+        )
+
     event = st.plotly_chart(
         fig,
         width="stretch",
