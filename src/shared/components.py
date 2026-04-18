@@ -1,5 +1,7 @@
 """Componentes de UI compartidos entre todas las páginas."""
 
+from pathlib import Path
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -25,6 +27,7 @@ from src.shared.utils import (
     load_topic_max_map_for_semester,
     load_practical_max_map_for_semester,
     load_topic_knowledge_map_for_semester,
+    parallel_sort_key,
 )
 
 

@@ -15,7 +15,6 @@ from src.shared import (
     render_sit_distribution,
     render_students_by_career_and_state,
     render_approved_percentage_by_career,
-    parallel_sort_key,
 )
 
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
@@ -24,7 +23,6 @@ st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 def main() -> None:
     st.title("Resumen general")
 
-    # Inicializar estado de sesión
     init_session_state_defaults()
 
     dataset_map = get_dataset_map()
@@ -33,58 +31,18 @@ def main() -> None:
         st.warning("No hay datasets disponibles. Primero genera un consolidado para un semestre.")
         st.stop()
 
-    # Cargar datos del semestre seleccionado
-    available_semesters = sorted(dataset_map.keys(), reverse=True)
-    from src.shared import get_default_semester
+    from src.shared.utils import get_default_semester
     default_semester = get_default_semester(dataset_map)
+    default_year, default_term = default_semester.split("-")
+    st.session_state.selected_year = int(default_year)
+    st.session_state.selected_term = int(default_term)
     
-    # Obtener el índice del semestre por defecto
-    default_index = available_semesters.index(default_semester) if default_semester in available_semesters else 0
-
-    # Selector de semestre en la barra lateral
-    with st.sidebar:
-        st.header("Filtros")
-        selected_semester = st.selectbox(
-            "Semestre",
-            options=available_semesters,
-            index=default_index,
-        )
-        selected_year_str, selected_term_str = selected_semester.split("-")
-        st.session_state.selected_year = int(selected_year_str)
-        st.session_state.selected_term = int(selected_term_str)
-
-    df = load_data(dataset_map[selected_semester]).copy()
-
-    # Obtener opciones de filtros
-    career_options = (
-        sorted(df["CARRERA"].dropna().astype(str).unique().tolist())
-        if "CARRERA" in df.columns
-        else []
-    )
-    sit_options = (
-        sorted(df["SIT"].dropna().unique().tolist())
-        if "SIT" in df.columns
-        else []
-    )
-    state_options = (
-        sorted(df["ESTADO"].dropna().astype(str).unique().tolist())
-        if "ESTADO" in df.columns
-        else []
-    )
-    parallel_options = (
-        sorted(df["PARALELO"].dropna().astype(str).unique().tolist(), key=parallel_sort_key)
-        if "PARALELO" in df.columns
-        else []
+    df = load_data(dataset_map[default_semester])
+    
+    selected_semester, selected_careers, selected_sit, selected_states, selected_parallels = render_sidebar_single_semester(
+        dataset_map, df
     )
 
-    # Filtros en sidebar
-    with st.sidebar:
-        selected_careers = st.multiselect("Carrera", options=career_options)
-        selected_sit = st.multiselect("Veces tomada (SIT)", options=sit_options)
-        selected_states = st.multiselect("Estado", options=state_options)
-        selected_parallels = st.multiselect("Paralelo", options=parallel_options)
-
-    # Aplicar filtros
     filtered_df = apply_filters(
         df=df,
         carreras=selected_careers,
@@ -97,7 +55,6 @@ def main() -> None:
         st.warning("No hay datos para los filtros seleccionados.")
         st.stop()
 
-    # Renderizar componentes siempre en expanders
     with st.expander("📊 Indicadores", expanded=False):
         render_main_metrics(filtered_df, f"Indicadores del semestre: {selected_semester}")
     
@@ -123,6 +80,5 @@ def main() -> None:
                 career_order, 
                 st.session_state.career_sort_order
             )
-
 
 main()

@@ -20,7 +20,6 @@ st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 def main() -> None:
     st.title("Análisis histórico")
 
-    # Inicializar estado de sesión
     init_session_state_defaults()
 
     historical_df = load_historical_data()
@@ -29,10 +28,8 @@ def main() -> None:
         st.warning("No hay datasets históricos disponibles. Primero genera consolidados en datasets/.")
         st.stop()
 
-    # Renderizar sidebar y obtener filtros
     semester_range, selected_faculties, selected_careers, selected_sit = render_sidebar_historical(historical_df)
 
-    # Aplicar filtros
     filtered_df = apply_historical_filters(
         df=historical_df,
         semester_range=semester_range,
@@ -45,7 +42,6 @@ def main() -> None:
         st.warning("No hay datos para los filtros seleccionados.")
         st.stop()
 
-    # Renderizar indicadores siempre en expander
     with st.expander("📊 Indicadores", expanded=False):
         render_historical_main_metrics(filtered_df)
     

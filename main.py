@@ -11,7 +11,6 @@ st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 st.title("Dashboard de Fundamentos de Programación")
 st.subheader("Carga de datos (ETL)")
 
-# Mensaje para usuarios móviles
 st.info("💡 **Consejo para móvil:** El menú de filtros en las otras páginas está en la barra lateral. Si no lo ves, toca el icono >> en la esquina superior izquierda para abrirlo.")
 
 st.caption(
@@ -221,7 +220,6 @@ else:
         file_name = file_detail["file_name"]
         issues = file_detail["issues"]
 
-        # with st.expander(f"Detalle: {file_name}"):
         is_valid = next(
             (row["is_valid"] for row in st.session_state.validation_summary if row["file_name"] == file_name),
             False
