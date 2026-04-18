@@ -589,6 +589,8 @@ def render_totals(df: pd.DataFrame) -> None:
 def render_theory(df: pd.DataFrame) -> None:
     """Renderiza el gráfico de componentes teóricos."""
     st.subheader("Componentes teóricos", help="Los promedios se calculan solo con estudiantes que sí dieron el examen.")
+    st.caption("Selecciona un componente para ver el detalle por temas en el gráfico de abajo.")
+    
     rows = []
 
     if "TOTAL TEORICO" in df.columns:
@@ -659,7 +661,7 @@ def render_theory(df: pd.DataFrame) -> None:
 def render_practical(df: pd.DataFrame, semester: str) -> None:
     """Renderiza el gráfico de componentes prácticos."""
     st.subheader("Componentes prácticos")
-
+    
     practical_max_map = load_practical_max_map_for_semester(semester)
 
     rows = []

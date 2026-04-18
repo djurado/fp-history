@@ -8,6 +8,10 @@ from src.validation.validator_service import validate_uploaded_file
 
 st.title("Dashboard de Fundamentos de Programación")
 st.subheader("Carga de datos (ETL)")
+
+# Mensaje para usuarios móviles
+st.info("💡 **Consejo para móvil:** El menú de filtros en las otras páginas está en la barra lateral. Si no lo ves, toca el icono >> en la esquina superior izquierda para abrirlo.")
+
 st.caption(
     "Puedes descargar archivos Excel de prueba desde "
     "[datasets/2025_2T en GitHub](https://github.com/djurado/fp-history/tree/main/datasets/2025_2T)."

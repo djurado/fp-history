@@ -97,33 +97,32 @@ def main() -> None:
         st.warning("No hay datos para los filtros seleccionados.")
         st.stop()
 
-    # Renderizar componentes
-    render_main_metrics(filtered_df, f"Indicadores principales del semestre: {selected_semester}")
-
+    # Renderizar componentes siempre en expanders
+    with st.expander("📊 Indicadores", expanded=False):
+        render_main_metrics(filtered_df, f"Indicadores del semestre: {selected_semester}")
+    
+    
     state_counts, state_percent, state_df_plot = build_state_distribution_df(filtered_df)
     col_left, col_right = st.columns(2)
     with col_left:
         render_state_distribution_chart(state_df_plot)
     with col_right:
         render_sit_distribution(filtered_df)
-
     render_state_distribution_table(state_counts, state_percent)
-
-    # Gráficos de carrera con ordenamiento
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        career_order = render_students_by_career_and_state(
-            filtered_df, 
-            st.session_state.career_sort_order
-        )
-
-    with col_right:
-        render_approved_percentage_by_career(
-            filtered_df, 
-            career_order, 
-            st.session_state.career_sort_order
-        )
+    
+    with st.expander("📊 Análisis por carrera", expanded=True):
+        col_left, col_right = st.columns(2)
+        with col_left:
+            career_order = render_students_by_career_and_state(
+                filtered_df, 
+                st.session_state.career_sort_order
+            )
+        with col_right:
+            render_approved_percentage_by_career(
+                filtered_df, 
+                career_order, 
+                st.session_state.career_sort_order
+            )
 
 
 main()

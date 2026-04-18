@@ -15,7 +15,7 @@ from src.shared import (
     parallel_sort_key,
 )
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
 
 def main() -> None:
@@ -23,7 +23,7 @@ def main() -> None:
 
     # Inicializar estado de sesión
     init_session_state_defaults()
-
+    
     dataset_map = get_dataset_map()
 
     if not dataset_map:
@@ -98,16 +98,15 @@ def main() -> None:
         st.warning("Sin datos para los filtros seleccionados.")
         return
 
-    # Renderizar componentes
-    render_main_metrics(filtered_df)
+    # Renderizar indicadores siempre en expander (comportamiento consistente en móvil y desktop)
+    with st.expander("📊 Indicadores", expanded=False):
+        render_main_metrics(filtered_df, f"Indicadores del semestre: {selected_semester}")
     render_totals(filtered_df)
-
     col1, col2 = st.columns(2)
     with col1:
-        render_theory(filtered_df)
-    with col2:
         render_practical(filtered_df, selected_semester)
-
+    with col2:
+        render_theory(filtered_df)
     render_topics(filtered_df, selected_semester)
 
 

@@ -45,9 +45,10 @@ def main() -> None:
         st.warning("No hay datos para los filtros seleccionados.")
         st.stop()
 
-    # Renderizar componentes
-    render_historical_main_metrics(filtered_df)
-
+    # Renderizar indicadores siempre en expander
+    with st.expander("📊 Indicadores", expanded=False):
+        render_historical_main_metrics(filtered_df)
+    
     grouped = build_historical_state_distribution(filtered_df)
     render_historical_state_chart(grouped)
     render_historical_student_counts_chart(grouped)

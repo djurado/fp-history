@@ -401,3 +401,34 @@ def init_session_state_defaults() -> None:
         st.session_state.topics_expander_expanded = True
     if "career_sort_order" not in st.session_state:
         st.session_state.career_sort_order = "total"
+    if "indicators_expanded" not in st.session_state:
+        st.session_state.indicators_expanded = True
+
+
+def render_responsive_indicators(
+    indicators_func: callable,
+    filtered_df: pd.DataFrame,
+    title: str = "Indicadores",
+    **kwargs
+) -> None:
+    """Renderiza indicadores con comportamiento responsivo.
+    
+    En móviles: oculta los indicadores en un expander colapsado por defecto
+    En desktop: muestra los indicadores directamente
+    
+    Args:
+        indicators_func: Función que renderiza los indicadores
+        filtered_df: DataFrame filtrado con los datos
+        title: Título para el expander
+        **kwargs: Argumentos adicionales para la función de indicadores
+    """
+    # Checkbox para controlar la visibilidad de indicadores
+    show_indicators = st.checkbox(
+        f"📊 {title}",
+        value=st.session_state.get("indicators_expanded", True),
+        help="Marcar para mostrar los indicadores, desmarcar para ocultarlos"
+    )
+    st.session_state.indicators_expanded = show_indicators
+    
+    if show_indicators:
+        indicators_func(filtered_df, **kwargs)
