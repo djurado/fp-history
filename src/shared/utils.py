@@ -288,6 +288,14 @@ def semester_sort_key(semester: str) -> tuple[int, int]:
     return int(year_str), int(term_str)
 
 
+def parallel_sort_key(parallel: str) -> tuple[int, str]:
+    """Función de ordenamiento para paralelos (numérico)."""
+    try:
+        return (int(parallel), "")
+    except (ValueError, TypeError):
+        return (0, str(parallel))
+
+
 def build_semester_options(df: pd.DataFrame) -> list[str]:
     """Construye la lista de opciones de semestres."""
     semesters = sorted(df["SEMESTRE"].dropna().astype(str).unique().tolist(), key=semester_sort_key)

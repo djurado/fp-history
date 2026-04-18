@@ -33,6 +33,7 @@ from src.shared.utils import (
     group_topic_columns_by_base,
     format_knowledge_list,
     semester_sort_key,
+    parallel_sort_key,
     build_semester_options,
     apply_filters,
     apply_historical_filters,

@@ -12,6 +12,7 @@ from src.shared import (
     render_theory,
     render_practical,
     render_topics,
+    parallel_sort_key,
 )
 
 st.set_page_config(layout="wide")
@@ -72,7 +73,7 @@ def main() -> None:
         else []
     )
     parallel_options = (
-        sorted(df["PARALELO"].dropna().astype(str).unique().tolist())
+        sorted(df["PARALELO"].dropna().astype(str).unique().tolist(), key=parallel_sort_key)
         if "PARALELO" in df.columns
         else []
     )

@@ -68,7 +68,7 @@ def render_sidebar_single_semester(
         else []
     )
     parallel_options = (
-        sorted(df["PARALELO"].dropna().astype(str).unique().tolist())
+        sorted(df["PARALELO"].dropna().astype(str).unique().tolist(), key=parallel_sort_key)
         if "PARALELO" in df.columns
         else []
     )

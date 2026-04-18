@@ -8,6 +8,10 @@ from src.validation.validator_service import validate_uploaded_file
 
 st.title("Dashboard de Fundamentos de Programación")
 st.subheader("Carga de datos (ETL)")
+st.caption(
+    "Puedes descargar archivos Excel de prueba desde "
+    "[datasets/2025_2T en GitHub](https://github.com/djurado/fp-history/tree/main/datasets/2025_2T)."
+)
 
 if "validation_summary" not in st.session_state:
     st.session_state.validation_summary = []
@@ -148,6 +152,21 @@ with col_generate:
         disabled=not all_valid,
     )
 
+if generate_clicked:
+    try:
+        df = build_semester_dataset(
+            st.session_state.validation_summary,
+            year=year,
+            term=term,
+        )
+        file_path = save_semester_dataset(df, year, term)
+        st.session_state.current_dataset_name = file_path.name
+        # Invalidar caché de datos históricos para que Tendencias se actualice
+        st.cache_data.clear()
+        st.success(f"Consolidado generado correctamente: {file_path.name}")
+    except Exception as exc:
+        st.error(f"Error al generar consolidado: {str(exc)}")
+
 st.subheader("Resultado por archivo")
 
 if not st.session_state.validation_summary:
@@ -186,19 +205,6 @@ else:
     col_ok, col_bad = st.columns(2)
     col_ok.metric("Archivos válidos", valid_count)
     col_bad.metric("Archivos inválidos", invalid_count)
-
-if generate_clicked:
-    try:
-        df = build_semester_dataset(
-            st.session_state.validation_summary,
-            year=year,
-            term=term,
-        )
-        file_path = save_semester_dataset(df, year, term)
-        st.session_state.current_dataset_name = file_path.name
-        st.success(f"Consolidado generado correctamente: {file_path.name}")
-    except Exception as exc:
-        st.error(f"Error al generar consolidado: {str(exc)}")
 
 st.subheader("Detalle")
 
