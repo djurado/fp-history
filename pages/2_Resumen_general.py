@@ -18,7 +18,7 @@ from src.shared import (
     parallel_sort_key,
 )
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
 
 def main() -> None:

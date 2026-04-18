@@ -14,7 +14,7 @@ from src.shared import (
     render_historical_state_table,
 )
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
 
 def main() -> None:

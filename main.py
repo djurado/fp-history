@@ -6,6 +6,8 @@ from config import MAX_YEAR, MIN_YEAR, VALID_TERMS
 from src.transform.consolidator_service import build_semester_dataset, save_semester_dataset
 from src.validation.validator_service import validate_uploaded_file
 
+st.set_page_config(layout="wide", initial_sidebar_state="expanded")
+
 st.title("Dashboard de Fundamentos de Programación")
 st.subheader("Carga de datos (ETL)")
 
