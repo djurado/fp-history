@@ -1,12 +1,7 @@
 """Constantes y configuraciones compartidas entre todas las páginas."""
 
-from pathlib import Path
+from config import DATASETS_PATH, METADATA_PATH, CAREERS_FILE, STATISTICS_METADATA_FILE
 
-# Rutas
-DATASETS_PATH = Path("datasets")
-METADATA_PATH = Path("metadata")
-CAREERS_FILE = METADATA_PATH / "Carreras.xlsx"
-STATISTICS_METADATA_FILE = METADATA_PATH / "metadata_estadisticas_FP.xlsx"
 METADATA_SHEET_PREFIX = "TPL_"
 
 # Colores para estados

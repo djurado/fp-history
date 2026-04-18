@@ -145,6 +145,29 @@ streamlit run main.py
 
 ---
 
+### 🌐 Modo local / remoto
+
+El proyecto soporta dos modos de ejecución para manejar datos de forma segura:
+
+| Modo | Descripción | Ruta de datos |
+|------|-------------|---------------|
+| `local`| Desarrollo local con datos privados | `datasets/privados/` |
+| `remote`  (default) | Despliegue en Streamlit Cloud | `datasets/` |
+
+#### Configuración mediante variable de entorno
+
+```bash
+# Modo local
+export DATASETS_MODE=local
+streamlit run main.py
+
+# Modo remoto (para Streamlit Cloud)
+export DATASETS_MODE=remote
+streamlit run main.py
+```
+
+---
+
 ### 📂 Datos y metadata
 
 Este proyecto NO incluye datos por defecto.
@@ -166,6 +189,7 @@ Archivo requerido:
 metadata_estadisticas_FP.xlsx
 ```
 Incluye:
+
 	•	estructura de columnas
 	•	valores máximos
 	•	reglas de validación
