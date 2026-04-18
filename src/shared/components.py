@@ -334,11 +334,9 @@ def render_sit_distribution(filtered_df: pd.DataFrame, title: str = "Estudiantes
 
 def render_students_by_career_and_state(
     filtered_df: pd.DataFrame,
-    sort_order: str = "total",
-    help_text: str = "Para ordenar por número de estudiantes, haz click en el gráfico.",
 ) -> list[str]:
     """Renderiza el gráfico de estudiantes por carrera."""
-    st.subheader("Estudiantes por carrera", help=help_text)
+    st.subheader("Estudiantes por carrera")
 
     grouped = (
         filtered_df.groupby(["CARRERA", "ESTADO"])
@@ -367,6 +365,9 @@ def render_students_by_career_and_state(
         lambda x: x[:20] + "..." if len(x) > 20 else x
     )
 
+    # Usar el valor del radio button para ordenar
+    sort_order = st.session_state.career_sort_order
+    
     if sort_order == "approved":
         career_summary = (
             filtered_df.groupby("CARRERA")
@@ -433,16 +434,7 @@ def render_students_by_career_and_state(
             font=dict(size=10, color='black')
         )
 
-    event = st.plotly_chart(
-        fig,
-        width="stretch",
-        key="students_by_career_chart",
-        on_select="rerun",
-        selection_mode="points",
-    )
-
-    if event and event.selection.points:
-        st.session_state.career_sort_order = "total"
+    st.plotly_chart(fig, width="stretch", key="students_by_career_chart")
 
     return career_order
 
@@ -450,11 +442,12 @@ def render_students_by_career_and_state(
 def render_approved_percentage_by_career(
     filtered_df: pd.DataFrame,
     career_order: list[str],
-    sort_order: str = "total",
-    help_text: str = "Para ordenar por porcentaje de aprobados, haz click en el gráfico.",
 ) -> None:
     """Renderiza el gráfico de porcentaje de aprobados por carrera."""
-    st.subheader("Aprobados por carrera", help=help_text)
+    st.subheader("Aprobados por carrera")
+    
+    # Usar el valor del radio button para ordenar
+    sort_order = st.session_state.career_sort_order
 
     career_summary = (
         filtered_df.groupby("CARRERA")
@@ -521,16 +514,7 @@ def render_approved_percentage_by_career(
         layer="below",
     )
 
-    event = st.plotly_chart(
-        fig,
-        width="stretch",
-        key="approved_by_career_chart",
-        on_select="rerun",
-        selection_mode="points",
-    )
-
-    if event and event.selection.points:
-        st.session_state.career_sort_order = "approved"
+    st.plotly_chart(fig, width="stretch", key="approved_by_career_chart")
 
 
 # ============== Componentes de detalle de semestre ==============

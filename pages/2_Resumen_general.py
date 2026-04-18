@@ -68,17 +68,19 @@ def main() -> None:
     render_state_distribution_table(state_counts, state_percent)
     
     with st.expander("📊 Análisis por carrera", expanded=True):
+        sort_option = st.radio(
+            "Ordenar por:",
+            options=["total", "approved"],
+            format_func=lambda x: "Total estudiantes" if x == "total" else "Aprobados (%)",
+            horizontal=True,
+            key="career_sort_radio",
+        )
+        st.session_state.career_sort_order = sort_option
+        
         col_left, col_right = st.columns(2)
         with col_left:
-            career_order = render_students_by_career_and_state(
-                filtered_df, 
-                st.session_state.career_sort_order
-            )
+            career_order = render_students_by_career_and_state(filtered_df)
         with col_right:
-            render_approved_percentage_by_career(
-                filtered_df, 
-                career_order, 
-                st.session_state.career_sort_order
-            )
+            render_approved_percentage_by_career(filtered_df, career_order)
 
 main()
