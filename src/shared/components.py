@@ -77,9 +77,35 @@ def render_sidebar_single_semester(
     )
 
     with st.sidebar:
-        selected_careers = st.multiselect("Carrera", options=career_options)
-        selected_sit = st.multiselect("Veces tomada (SIT)", options=sit_options)
-        selected_states = st.multiselect("Estado", options=state_options)
+        # Usar session_state para mantener las carreras seleccionadas entre páginas
+        if "selected_careers" not in st.session_state:
+            st.session_state.selected_careers = []
+
+        selected_careers = st.multiselect(
+            "Carrera",
+            options=career_options,
+            default=st.session_state.selected_careers,
+        )
+        st.session_state.selected_careers = selected_careers
+
+        selected_sit = st.segmented_control(
+            "Veces tomada (SIT)",
+            options=sit_options,
+            default=sit_options,
+            selection_mode="multi",
+        )
+        if selected_sit is None:
+            selected_sit = []
+
+        selected_states = st.segmented_control(
+            "Estado",
+            options=state_options,
+            default=state_options,
+            selection_mode="multi",
+        )
+        if selected_states is None:
+            selected_states = []
+
         selected_parallels = st.multiselect("Paralelo", options=parallel_options)
 
     return selected_semester, selected_careers, selected_sit, selected_states, selected_parallels
@@ -115,18 +141,33 @@ def render_sidebar_historical(
             careers_source = df.copy()
 
         career_options = sorted(careers_source["CARRERA"].dropna().astype(str).unique().tolist())
+        
+        # Usar session_state para mantener las carreras seleccionadas entre páginas
+        if "selected_careers" not in st.session_state:
+            st.session_state.selected_careers = []
+
+        # Filtrar defaults válidos (solo los que existen en las opciones actuales)
+        valid_defaults = [c for c in st.session_state.selected_careers if c in career_options]
+        
+        # Usar defaults válidos de session_state, o vacío si no hay
+        default_careers = valid_defaults if valid_defaults else []
+        
         selected_careers = st.multiselect(
             "Carrera",
             options=career_options,
-            default=[],
+            default=default_careers,
         )
+        st.session_state.selected_careers = selected_careers
 
         sit_options = sorted(df["SIT"].dropna().unique().tolist())
-        selected_sit = st.multiselect(
+        selected_sit = st.segmented_control(
             "Veces tomada (SIT)",
             options=sit_options,
-            default=[],
+            default=sit_options,
+            selection_mode="multi",
         )
+        if selected_sit is None:
+            selected_sit = []
 
     semester_start, semester_end = selected_semesters
     semester_range = [
