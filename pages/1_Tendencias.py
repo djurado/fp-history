@@ -28,13 +28,14 @@ def main() -> None:
         st.warning("No hay datasets históricos disponibles. Primero genera consolidados en datasets/.")
         st.stop()
 
-    semester_range, selected_faculties, selected_careers, selected_sit = render_sidebar_historical(historical_df)
+    semester_range, selected_faculties, selected_careers, selected_career_types, selected_sit = render_sidebar_historical(historical_df)
 
     filtered_df = apply_historical_filters(
         df=historical_df,
         semester_range=semester_range,
         selected_faculties=selected_faculties,
         selected_careers=selected_careers,
+        selected_career_types=selected_career_types,
         selected_sit=selected_sit,
     )
 

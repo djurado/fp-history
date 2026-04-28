@@ -307,6 +307,7 @@ def build_semester_options(df: pd.DataFrame) -> list[str]:
 def apply_filters(
     df: pd.DataFrame,
     carreras: list[str] | None = None,
+    carrera_tipos: list[str] | None = None,
     sit: list | None = None,
     estados: list[str] | None = None,
     paralelos: list[str] | None = None,
@@ -316,6 +317,9 @@ def apply_filters(
 
     if carreras:
         filtered_df = filtered_df[filtered_df["CARRERA"].astype(str).isin(carreras)]
+
+    if carrera_tipos and "CARRERA_TIPO" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["CARRERA_TIPO"].astype(str).isin(carrera_tipos)]
 
     if sit:
         filtered_df = filtered_df[filtered_df["SIT"].isin(sit)]
@@ -334,6 +338,7 @@ def apply_historical_filters(
     semester_range: list[str],
     selected_faculties: list[str] | None = None,
     selected_careers: list[str] | None = None,
+    selected_career_types: list[str] | None = None,
     selected_sit: list | None = None,
 ) -> pd.DataFrame:
     """Aplica filtros históricos al DataFrame."""
@@ -346,6 +351,9 @@ def apply_historical_filters(
 
     if selected_careers:
         filtered_df = filtered_df[filtered_df["CARRERA"].astype(str).isin(selected_careers)]
+
+    if selected_career_types and "CARRERA_TIPO" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["CARRERA_TIPO"].astype(str).isin(selected_career_types)]
 
     if selected_sit:
         filtered_df = filtered_df[filtered_df["SIT"].isin(selected_sit)]
