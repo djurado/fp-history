@@ -14,6 +14,15 @@ from src.shared.constants import (
     TOTALS_COMPONENT_COLORS,
     TOPIC_COLORS,
     EXAM_LABELS,
+    STUDENT_TRACKING_REQUIRED_COLUMNS,
+    STUDENT_TRACKING_TABLE_COLUMNS,
+    STUDENT_TRACKING_TABLE_LABELS,
+    STUDENT_TRACKING_DISABLED_COLUMNS,
+    STUDENT_HISTORY_BASE_COLUMNS,
+    STUDENT_HISTORY_THEORY_COLUMNS,
+    STUDENT_HISTORY_PRACTICAL_COLUMNS,
+    STUDENT_HISTORY_REVIEW_COLUMNS,
+    STUDENT_HISTORY_REVIEW_LABELS,
     VALID_KNOWLEDGES,
     KNOWLEDGE_LABEL_FIXES,
 )
@@ -35,6 +44,7 @@ from src.shared.utils import (
     semester_sort_key,
     parallel_sort_key,
     build_semester_options,
+    sort_semester_frame,
     apply_filters,
     apply_historical_filters,
     valid_exam_mask,
@@ -62,4 +72,14 @@ from src.shared.components import (
     render_historical_state_chart,
     render_historical_state_table,
     render_historical_student_counts_chart,
+)
+
+from src.shared.student_tracking import (
+    validate_student_tracking_data,
+    build_students_table,
+    render_student_career_filter,
+    render_student_table_filters,
+    filter_students_table,
+    render_students_selector,
+    render_student_history,
 )

@@ -302,6 +302,16 @@ def build_semester_options(df: pd.DataFrame) -> list[str]:
     return semesters
 
 
+def sort_semester_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Ordena un DataFrame por la columna SEMESTRE."""
+    parts = df["SEMESTRE"].astype(str).str.split("-", n=1, expand=True)
+    sorted_df = df.assign(
+        _YEAR=pd.to_numeric(parts[0], errors="coerce"),
+        _TERM=pd.to_numeric(parts[1], errors="coerce"),
+    ).sort_values(["_YEAR", "_TERM"], kind="stable")
+    return sorted_df.drop(columns=["_YEAR", "_TERM"])
+
+
 # ============== Funciones de filtrado ==============
 
 def apply_filters(
