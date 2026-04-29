@@ -553,7 +553,7 @@ def validate_uploaded_file(file_name: str, file_bytes: bytes, year: int, term: i
                                 "ERROR",
                                 row_index + 3,
                                 examen_col,
-                                f"{estado_col}={status_value} requiere 0.",
+                                f"{estado_col}={status_value}. El estado no corresponde a una calificación diferente de cero.",
                             )
                         )
 
@@ -567,7 +567,7 @@ def validate_uploaded_file(file_name: str, file_bytes: bytes, year: int, term: i
                                 "ERROR",
                                 row_index + 3,
                                 tema_col,
-                                f"{estado_col}={status_value} requiere 0.",
+                                f"{estado_col}={status_value}. El estado no corresponde a una calificación diferente de cero.",
                             )
                         )
 
