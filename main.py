@@ -4,7 +4,7 @@ import streamlit as st
 
 from config import MAX_YEAR, MIN_YEAR, VALID_TERMS
 from src.transform.consolidator_service import build_semester_dataset, save_semester_dataset
-from src.validation.validator_service import validate_uploaded_file
+from src.validation.validator_service import get_metadata_status, validate_uploaded_file
 
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
@@ -13,10 +13,32 @@ st.subheader("Carga de datos (ETL)")
 
 st.info("💡 **Consejo para móvil:** El menú de filtros en las otras páginas está en la barra lateral. Si no lo ves, toca el icono >> en la esquina superior izquierda para abrirlo.")
 
-st.caption(
+
+with st.expander("💻 Formato de los archivos Excel", expanded=False):
+    st.caption(
     "Puedes descargar archivos Excel de prueba desde "
-    "[datasets/2025_2T en GitHub](https://github.com/djurado/fp-history/tree/main/datasets/2025_2T)."
-)
+    "[datasets en GitHub](https://github.com/djurado/fp-history/tree/main/datasets/2025_2T)."
+    )
+    st.markdown(
+    """
+ ### Instrucciones para reportar sus estadísticas
+
+- **Descargar plantilla:**  [Excel](https://docs.google.com/spreadsheets/d/1Fj7r2YuKUybM-uRL0_CuamUn2ywQsnm9/edit?usp=share_link&ouid=114490585177627308738&rtpof=true&sd=true)
+- **Mantener filas 1 y 2:** no las modifique (encabezado y fila de máximos).  
+- **Un archivo por paralelo:** nombre el archivo con `##` como dos dígitos (ej. 02).  
+- **No cambie la estructura:** conserve todas las columnas.  
+- **Verifique fila 2:** compruebe los puntos máximos y respételos.  
+- **Tipo y formato de columnas:**  
+  - **`REVISADO X ESTUDIANTE`** y **`TRABAJOS_EXTRA`**: 0=Falso o 1=Verdadero (enteros).  
+  - **`PARCIAL`, `FINAL`, `MEJORAMIENTO`, `PRACTICO`**: enteros (sin decimales).  
+  - **`TEMA`, `EXAMEN`, `TALLER`, `PARTICIPACION`**: números con hasta 2 decimales máximo (ej. 8.05 o 7.75).  
+- **Reglas según `ESTADO` de cada Examen** (entero sin decimales):  
+  + 1 = Sí se presentó. El **examen y los temas** pueden tener un valor entre 0 y el máximo definido en la fila 2.
+  + 2 = No se presentó. El **examen y los temas** deben tener cero (0).
+  + 3 = Medida académica (Ej: copia). El **examen y los temas** deben tener cero (0).
+- **Listo para entregar:** verifique que su archivo Excel ha pasado la validación y envíe por correo al coordinador.
+    """
+    )
 
 if "validation_summary" not in st.session_state:
     st.session_state.validation_summary = []
@@ -38,7 +60,7 @@ def _current_files_key(uploaded_files: list) -> tuple:
 col_year, col_term = st.columns(2)
 
 with col_year:
-    year_options = list(range(MIN_YEAR, MAX_YEAR + 1))
+    year_options = list(range( MAX_YEAR, MIN_YEAR - 1, -1))
     current_year = datetime.now().year
 
     default_year = st.session_state.get(
@@ -73,6 +95,11 @@ with col_term:
 st.session_state.selected_year = year
 st.session_state.selected_term = term
 
+metadata_available, metadata_message = get_metadata_status(year, term)
+
+if not metadata_available:
+    st.warning(metadata_message)
+
 uploaded_files = st.file_uploader(
     "Sube uno o varios archivos Excel del semestre seleccionado",
     type=["xlsx"],
@@ -92,14 +119,20 @@ st.subheader("Acciones")
 col_validate, col_generate = st.columns(2)
 
 with col_validate:
-    validate_clicked = st.button("Validar archivos", use_container_width=True)
+    validate_clicked = st.button(
+        "Validar archivos",
+        use_container_width=True,
+        disabled=not metadata_available,
+    )
 
 if validate_clicked:
     st.session_state.validation_summary = []
     st.session_state.validation_details = []
     st.session_state.validated_files_payload = []
 
-    if not uploaded_files:
+    if not metadata_available:
+        st.error(metadata_message)
+    elif not uploaded_files:
         st.warning("Debes subir al menos un archivo para validar.")
     else:
         progress = st.progress(0, text="Iniciando validación...")
@@ -154,7 +187,7 @@ with col_generate:
     generate_clicked = st.button(
         "Generar consolidado",
         width='stretch',
-        disabled=not all_valid,
+        disabled=(not metadata_available) or (not all_valid),
     )
 
 if generate_clicked:

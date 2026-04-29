@@ -262,11 +262,10 @@ def _discover_structure(expected_columns: list[str]) -> dict[str, Any]:
 
 
 def load_metadata_for_semester(year: int, term: int, metadata_path=STATISTICS_METADATA_FILE) -> pd.DataFrame:
-    sheet_name = f"TPL_{year}_{term}"
-    workbook = pd.ExcelFile(metadata_path)
-    if sheet_name not in workbook.sheet_names:
-        available = ", ".join(workbook.sheet_names)
-        raise ValueError(f"No existe metadata para {sheet_name}. Hojas disponibles: {available}")
+    sheet_name = get_metadata_sheet_name(year, term)
+    metadata_available, metadata_message = get_metadata_status(year, term, metadata_path)
+    if not metadata_available:
+        raise ValueError(metadata_message)
     return pd.read_excel(metadata_path, sheet_name=sheet_name)
 
 
@@ -350,11 +349,40 @@ def _build_early_result(file_name: str, issues: list[ValidationIssue]) -> FileVa
     )
 
 
-def validate_uploaded_file(file_name: str, file_bytes: bytes, year: int, term: int) -> FileValidationResult:
-    metadata_df = load_metadata_for_semester(year, term)
-    expected_columns, max_row = _build_template_from_metadata(metadata_df)
+def get_metadata_sheet_name(year: int, term: int) -> str:
+    return f"TPL_{year}_{term}"
 
+
+def get_metadata_status(year: int, term: int, metadata_path=STATISTICS_METADATA_FILE) -> tuple[bool, str | None]:
+    sheet_name = get_metadata_sheet_name(year, term)
+
+    try:
+        workbook = pd.ExcelFile(metadata_path)
+    except FileNotFoundError:
+        return False, (
+            f"No se encontró el archivo de metadata: {metadata_path.name}. "
+            "Debe ser agregado antes de validar o generar el consolidado."
+        )
+    except Exception as exc:
+        return False, f"No se pudo abrir el archivo de metadata: {exc}"
+
+    if sheet_name not in workbook.sheet_names:
+        return False, (
+            f"No existe metadata para {year}-{term}. "
+            f"Debe ser agregada antes de validar o generar el consolidado."
+        )
+
+    return True, None
+
+
+def validate_uploaded_file(file_name: str, file_bytes: bytes, year: int, term: int) -> FileValidationResult:
     issues: list[ValidationIssue] = []
+    try:
+        metadata_df = load_metadata_for_semester(year, term)
+        expected_columns, max_row = _build_template_from_metadata(metadata_df)
+    except Exception as exc:
+        issues.append(ValidationIssue("ERROR", None, None, str(exc)))
+        return _build_early_result(file_name, issues)
 
     header_issues = _validate_input_header_against_official(file_bytes, expected_columns)
     issues.extend(header_issues)
