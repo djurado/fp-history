@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from enum import Enum
 from io import BytesIO
 from typing import Any
@@ -294,18 +295,70 @@ def _validate_input_header_against_official(file_bytes: bytes, expected_columns:
             )
         )
 
-    max_len = max(expected_len, input_len)
-    for index in range(max_len):
-        expected = expected_columns[index] if index < expected_len else None
-        found = input_columns[index] if index < input_len else None
+    expected_normalized = [_normalize_header_value(value) for value in expected_columns]
+    input_normalized = [_normalize_header_value(value) for value in input_columns]
+    matcher = SequenceMatcher(None, expected_normalized, input_normalized, autojunk=False)
 
-        if _normalize_header_value(expected) != _normalize_header_value(found):
+    for tag, expected_start, expected_end, input_start, input_end in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+
+        if tag == "delete":
+            for index in range(expected_start, expected_end):
+                issues.append(
+                    ValidationIssue(
+                        "ERROR",
+                        1,
+                        f"columna_{index + 1}",
+                        f"Columna faltante. Esperado: {expected_columns[index]!r}.",
+                    )
+                )
+            continue
+
+        if tag == "insert":
+            for index in range(input_start, input_end):
+                issues.append(
+                    ValidationIssue(
+                        "ERROR",
+                        1,
+                        f"columna_{index + 1}",
+                        f"Columna adicional no esperada: {input_columns[index]!r}.",
+                    )
+                )
+            continue
+
+        expected_block = expected_columns[expected_start:expected_end]
+        input_block = input_columns[input_start:input_end]
+
+        if len(expected_block) == len(input_block):
+            for offset, (expected, found) in enumerate(zip(expected_block, input_block)):
+                issues.append(
+                    ValidationIssue(
+                        "ERROR",
+                        1,
+                        f"columna_{expected_start + offset + 1}",
+                        f"Cabecera incorrecta. Esperado: {expected!r}. Encontrado: {found!r}.",
+                    )
+                )
+            continue
+
+        for index in range(expected_start, expected_end):
             issues.append(
                 ValidationIssue(
                     "ERROR",
                     1,
                     f"columna_{index + 1}",
-                    f"Cabecera incorrecta. Esperado: {expected!r}. Encontrado: {found!r}.",
+                    f"Columna faltante o fuera de lugar. Esperado: {expected_columns[index]!r}.",
+                )
+            )
+
+        for index in range(input_start, input_end):
+            issues.append(
+                ValidationIssue(
+                    "ERROR",
+                    1,
+                    f"columna_{index + 1}",
+                    f"Columna adicional o fuera de lugar: {input_columns[index]!r}.",
                 )
             )
 
