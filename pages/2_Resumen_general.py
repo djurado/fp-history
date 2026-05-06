@@ -39,12 +39,13 @@ def main() -> None:
     
     df = load_data(dataset_map[default_semester])
     
-    selected_semester, selected_careers, selected_career_types, selected_sit, selected_states, selected_parallels = render_sidebar_single_semester(
-        dataset_map, df
+    selected_semester, selected_faculties, selected_careers, selected_career_types, selected_sit, selected_states, selected_parallels = render_sidebar_single_semester(
+        dataset_map, df, page_key="resumen"
     )
 
     filtered_df = apply_filters(
         df=df,
+        facultades=selected_faculties,
         carreras=selected_careers,
         carrera_tipos=selected_career_types,
         sit=selected_sit,

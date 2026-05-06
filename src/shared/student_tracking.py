@@ -4,20 +4,23 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from src.shared.filter_state import (
+    render_shared_segmented_control,
+)
+from src.shared.components import render_shared_academic_filters
 from src.shared.constants import (
     STATE_COLORS,
     STATE_ORDER,
-    STUDENT_HISTORY_BASE_COLUMNS,
-    STUDENT_HISTORY_PRACTICAL_COLUMNS,
-    STUDENT_HISTORY_REVIEW_COLUMNS,
-    STUDENT_HISTORY_REVIEW_LABELS,
-    STUDENT_HISTORY_THEORY_COLUMNS,
     STUDENT_TRACKING_DISABLED_COLUMNS,
     STUDENT_TRACKING_REQUIRED_COLUMNS,
     STUDENT_TRACKING_TABLE_COLUMNS,
     STUDENT_TRACKING_TABLE_LABELS,
 )
-from src.shared.utils import semester_sort_key, sort_semester_frame
+from src.shared.utils import (
+    load_practical_max_map_for_semester,
+    semester_sort_key,
+    sort_semester_frame,
+)
 
 
 def validate_student_tracking_data(df: pd.DataFrame) -> list[str]:
@@ -25,11 +28,24 @@ def validate_student_tracking_data(df: pd.DataFrame) -> list[str]:
     return [column for column in STUDENT_TRACKING_REQUIRED_COLUMNS if column not in df.columns]
 
 
-def build_students_table(df: pd.DataFrame, selected_career: str | None = None) -> pd.DataFrame:
+def build_students_table(
+    df: pd.DataFrame,
+    selected_careers: list[str] | str | None = None,
+    selected_faculties: list[str] | None = None,
+    selected_career_types: list[str] | None = None,
+) -> pd.DataFrame:
     """Construye la tabla resumen con el último estado de cada estudiante."""
     source_df = df.copy()
-    if selected_career:
-        source_df = source_df[source_df["CARRERA"].astype(str) == selected_career].copy()
+    if selected_faculties and "FACULTAD" in source_df.columns:
+        source_df = source_df[source_df["FACULTAD"].astype(str).isin(selected_faculties)].copy()
+    if selected_career_types and "CARRERA_TIPO" in source_df.columns:
+        source_df = source_df[
+            source_df["CARRERA_TIPO"].astype(str).isin(selected_career_types)
+        ].copy()
+
+    selected_career_values = _coerce_selected_careers(selected_careers)
+    if selected_career_values:
+        source_df = source_df[source_df["CARRERA"].astype(str).isin(selected_career_values)].copy()
 
     if source_df.empty:
         return pd.DataFrame()
@@ -53,23 +69,24 @@ def build_students_table(df: pd.DataFrame, selected_career: str | None = None) -
     return table.drop(columns=["_YEAR", "_TERM"])
 
 
-def render_student_career_filter(historical_df: pd.DataFrame) -> str | None:
-    """Renderiza el filtro de carrera para seguimiento."""
-    careers = sorted(historical_df["CARRERA"].dropna().astype(str).unique().tolist())
-    selected_career_label = st.sidebar.selectbox("Carrera", options=["Todas"] + careers)
-    return None if selected_career_label == "Todas" else selected_career_label
+def render_student_academic_filters(historical_df: pd.DataFrame) -> tuple[list[str], list[str], list[str]]:
+    """Renderiza filtros generales para seguimiento."""
+    with st.sidebar:
+        return render_shared_academic_filters(historical_df)
 
 
 def render_student_table_filters(students_table: pd.DataFrame) -> tuple[list[int], str]:
     """Renderiza filtros laterales que dependen de la tabla de estudiantes."""
     attempt_options = sorted(students_table["INTENTOS"].dropna().astype(int).unique().tolist())
-    selected_attempts = st.sidebar.multiselect(
-        "Veces tomadas",
-        options=attempt_options,
-        default=attempt_options,
-    )
-
-    search_query = st.sidebar.text_input("Buscar por nombre o matrícula", value="").strip().lower()
+    with st.sidebar:
+        selected_attempts = render_shared_segmented_control(
+            "Veces tomadas",
+            options=attempt_options,
+            state_key="seguimiento_selected_attempts",
+            widget_key="_seguimiento_selected_attempts",
+            default=attempt_options,
+        )
+        search_query = st.text_input("Buscar por nombre o matrícula", value="").strip().lower()
     return selected_attempts, search_query
 
 
@@ -153,20 +170,27 @@ def render_student_history(df: pd.DataFrame, selected_matricula: str) -> None:
     col3.metric("Último estado", last_state)
 
     _render_student_grade_chart(history_df)
-    _render_student_grade_table(history_df)
-    _render_student_review_table(history_df)
+    _render_student_transposed_history_table(history_df)
 
 
 def _build_student_table_column_config() -> dict[str, object]:
     return {
-        "VER": st.column_config.CheckboxColumn("VER", help="Marca para ver el histórico"),
-        "MATRICULA": st.column_config.TextColumn("MATRICULA"),
-        "NOMBRE": st.column_config.TextColumn("NOMBRE"),
-        "ULTIMA_CARRERA": st.column_config.TextColumn("ULTIMA_CARRERA"),
-        "ULTIMO_SEMESTRE": st.column_config.TextColumn("ULTIMO_SEMESTRE"),
-        "ULTIMO_ESTADO": st.column_config.TextColumn("ULTIMO_ESTADO"),
-        "INTENTOS": st.column_config.NumberColumn("INTENTOS", format="%d"),
+        "VER": st.column_config.CheckboxColumn("VER", help="Seleccionar para ver el histórico"),
+        "MATRICULA": st.column_config.TextColumn("Matrícula"),
+        "NOMBRE": st.column_config.TextColumn("Nombre"),
+        "ULTIMA_CARRERA": st.column_config.TextColumn("Carrera (*)", help="Última carrera"),
+        "ULTIMO_SEMESTRE": st.column_config.TextColumn("Semestre (*)", help="Último semestre"),
+        "ULTIMO_ESTADO": st.column_config.TextColumn("Estado (*)", help="Último Estado"),
+        "INTENTOS": st.column_config.NumberColumn("Intentos", format="%d", help="Número de veces que el estudiante aparece en el histórico"),
     }
+
+
+def _coerce_selected_careers(selected_careers: list[str] | str | None) -> list[str]:
+    if selected_careers is None:
+        return []
+    if isinstance(selected_careers, str):
+        return [selected_careers]
+    return list(selected_careers)
 
 
 def _resolve_selected_matricula(
@@ -222,47 +246,296 @@ def _render_student_grade_chart(history_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, width="stretch")
 
 
-def _render_student_grade_table(history_df: pd.DataFrame) -> None:
-    columns_to_show = [
-        column
-        for column in (
-            STUDENT_HISTORY_BASE_COLUMNS
-            + STUDENT_HISTORY_THEORY_COLUMNS
-            + STUDENT_HISTORY_PRACTICAL_COLUMNS
+def _render_student_transposed_history_table(history_df: pd.DataFrame) -> None:
+    semester_labels = _build_unique_semester_labels(history_df)
+    section_rows = _build_transposed_history_rows(history_df, semester_labels)
+    practical_max_by_semester = _build_practical_max_by_semester(history_df, semester_labels)
+
+    for section_name, section_df in section_rows:
+        with st.expander(section_name, expanded=section_name == "Resumen"):
+            _render_section_dataframes(
+                section_df,
+                semester_labels,
+                practical_max_by_semester,
+            )
+
+
+def _format_binary_bool_value(value) -> bool:
+    if pd.isna(value):
+        return False
+
+    normalized_value = str(value).strip().lower()
+    if normalized_value in {"1", "1.0", "sí", "si", "true", "verdadero"}:
+        return True
+    if normalized_value in {"0", "0.0", "no", "false", "falso"}:
+        return False
+    return bool(value)
+
+
+def _build_unique_semester_labels(history_df: pd.DataFrame) -> list[str]:
+    seen_counts: dict[str, int] = {}
+    labels: list[str] = []
+    for semester in history_df["SEMESTRE"].astype(str).tolist():
+        seen_counts[semester] = seen_counts.get(semester, 0) + 1
+        label = semester if seen_counts[semester] == 1 else f"{semester} ({seen_counts[semester]})"
+        labels.append(label)
+    return labels
+
+
+def _build_transposed_history_rows(
+    history_df: pd.DataFrame,
+    semester_labels: list[str],
+) -> list[tuple[str, pd.DataFrame]]:
+    sections = [
+        (
+            "Resumen",
+            [
+                ("Estado", "ESTADO", "state"),
+                ("Nota final", "NOTA FINAL", "progress"),
+                ("Teórico", "TOTAL TEORICO", "progress"),
+                ("Práctico", "PRACTICO", "progress"),
+            ],
+        ),
+        (
+            "Evaluaciones teóricas",
+            [
+                ("Parcial", "PARCIAL", "progress"),
+                ("Examen parcial", "EXAMEN 1E", "progress"),
+                ("Revisó examen parcial", "REVISADO_X_ESTUDIANTE 1E", "icon"),
+                ("Final", "FINAL", "progress"),
+                ("Examen final", "EXAMEN 2E", "progress"),
+                ("Revisó examen final", "REVISADO_X_ESTUDIANTE 2E", "icon"),
+                ("Mejoramiento", "EXAMEN 3E", "progress"),
+                ("Revisó examen mejoramiento", "REVISADO_X_ESTUDIANTE 3E", "icon"),
+                ("Presentó trabajos extras", "TRABAJOS_EXTRA", "icon"),
+            ],
+        ),
+        (
+            "Práctico",
+            [
+                ("Práctico", "PRACTICO", "progress"),
+                ("Talleres", "TALLERES", "progress"),
+                ("Participación", "PARTICIPACION", "progress"),
+            ],
+        ),
+    ]
+
+    table_sections = []
+    for section_name, indicators in sections:
+        rows = [
+            _build_indicator_row(history_df, semester_labels, label, source_column, value_type)
+            for label, source_column, value_type in indicators
+            if source_column in history_df.columns
+        ]
+        if rows:
+            table_sections.append((section_name, pd.DataFrame(rows)))
+    return table_sections
+
+
+def _build_indicator_row(
+    history_df: pd.DataFrame,
+    semester_labels: list[str],
+    label: str,
+    source_column: str,
+    value_type: str,
+) -> dict[str, object]:
+    row = {"Indicador": label, "_source_column": source_column, "_value_type": value_type}
+    for semester_label, (_, source_row) in zip(semester_labels, history_df.iterrows(), strict=False):
+        row[semester_label] = _get_display_source_value(source_row, source_column)
+    return row
+
+
+def _get_display_source_value(source_row: pd.Series, source_column: str):
+    if not _should_show_exam_value(source_row, source_column):
+        return pd.NA
+    return source_row[source_column]
+
+
+def _should_show_exam_value(source_row: pd.Series, source_column: str) -> bool:
+    exam_status_columns = {
+        "EXAMEN 1E": "ESTADO 1E",
+        "EXAMEN 2E": "ESTADO 2E",
+        "EXAMEN 3E": "ESTADO 3E",
+    }
+    status_column = exam_status_columns.get(source_column)
+    if status_column is None or status_column not in source_row.index:
+        return True
+
+    return _is_exam_taken(source_row[status_column])
+
+
+def _is_exam_taken(value) -> bool:
+    if pd.isna(value):
+        return False
+
+    normalized_value = str(value).strip().lower()
+    return normalized_value in {"1", "1.0", "sí", "si", "true", "verdadero"}
+
+
+def _render_section_dataframes(
+    section_df: pd.DataFrame,
+    semester_labels: list[str],
+    practical_max_by_semester: dict[str, dict[str, float]],
+) -> None:
+    state_df = _build_display_dataframe(section_df, semester_labels, "state", practical_max_by_semester)
+    if not state_df.empty:
+        st.dataframe(
+            _style_state_dataframe(state_df, semester_labels),
+            width="stretch",
+            hide_index=True,
+            column_config=_build_text_column_config(semester_labels),
         )
-        if column in history_df.columns
-    ]
-    if columns_to_show:
-        st.dataframe(history_df[columns_to_show], width="stretch", hide_index=True)
 
-
-def _render_student_review_table(history_df: pd.DataFrame) -> None:
-    review_to_show = [column for column in STUDENT_HISTORY_REVIEW_COLUMNS if column in history_df.columns]
-    if not review_to_show:
-        return
-
-    review_df = history_df[review_to_show].copy()
-    for column_name in _get_binary_review_columns(review_df):
-        review_df[column_name] = _format_binary_review_column(review_df[column_name])
-
-    st.dataframe(
-        review_df.rename(columns=STUDENT_HISTORY_REVIEW_LABELS),
-        width="stretch",
-        hide_index=True,
+    progress_df = _build_display_dataframe(
+        section_df,
+        semester_labels,
+        "progress",
+        practical_max_by_semester,
     )
+    if not progress_df.empty:
+        st.dataframe(
+            progress_df,
+            width="stretch",
+            hide_index=True,
+            column_config=_build_progress_column_config(semester_labels),
+        )
+
+    checkbox_df = _build_display_dataframe(section_df, semester_labels, "icon", practical_max_by_semester)
+    if not checkbox_df.empty:
+        st.dataframe(
+            checkbox_df,
+            width="stretch",
+            hide_index=True,
+            column_config=_build_checkbox_column_config(semester_labels),
+        )
 
 
-def _get_binary_review_columns(review_df: pd.DataFrame) -> list[str]:
-    return [
-        column
-        for column in review_df.columns
-        if column.startswith("REVISADO_X_ESTUDIANTE") or column == "TRABAJOS_EXTRA"
-    ]
+def _build_display_dataframe(
+    section_df: pd.DataFrame,
+    semester_labels: list[str],
+    value_type: str,
+    practical_max_by_semester: dict[str, dict[str, float]],
+) -> pd.DataFrame:
+    display_df = section_df.loc[section_df["_value_type"] == value_type].copy()
+    if display_df.empty:
+        return pd.DataFrame()
+
+    if value_type == "progress":
+        for semester_label in semester_labels:
+            display_df[semester_label] = display_df.apply(
+                lambda row: _normalize_progress_value(
+                    value=row[semester_label],
+                    source_column=str(row["_source_column"]),
+                    semester_label=semester_label,
+                    practical_max_by_semester=practical_max_by_semester,
+                ),
+                axis=1,
+            )
+    elif value_type == "icon":
+        for semester_label in semester_labels:
+            display_df[semester_label] = display_df[semester_label].map(_format_binary_bool_value)
+    else:
+        for semester_label in semester_labels:
+            display_df[semester_label] = display_df[semester_label].map(_format_plain_value)
+
+    display_df = display_df.drop(columns=["_source_column", "_value_type"])
+    return display_df
 
 
-def _format_binary_review_column(series: pd.Series) -> pd.Series:
-    numeric_col = pd.to_numeric(series, errors="coerce")
-    return series.where(
-        numeric_col.isna(),
-        numeric_col.map({0: "No", 1: "Sí"}).fillna(numeric_col.astype("Int64").astype(str)),
+def _build_progress_column_config(semester_labels: list[str]) -> dict[str, object]:
+    column_config: dict[str, object] = {
+        "Indicador": st.column_config.TextColumn("Indicador", pinned=True),
+    }
+    column_config.update(
+        {
+            semester_label: st.column_config.ProgressColumn(
+                semester_label,
+                format="%.1f%%",
+                min_value=0,
+                max_value=100,
+                color="green",
+            )
+            for semester_label in semester_labels
+        }
     )
+    return column_config
+
+
+def _build_checkbox_column_config(semester_labels: list[str]) -> dict[str, object]:
+    column_config: dict[str, object] = {
+        "Indicador": st.column_config.TextColumn("Indicador", pinned=True),
+    }
+    column_config.update(
+        {
+            semester_label: st.column_config.CheckboxColumn(
+                semester_label,
+                disabled=True,
+            )
+            for semester_label in semester_labels
+        }
+    )
+    return column_config
+
+
+def _build_text_column_config(semester_labels: list[str]) -> dict[str, object]:
+    column_config: dict[str, object] = {
+        "Indicador": st.column_config.TextColumn("Indicador", pinned=True),
+    }
+    column_config.update(
+        {
+            semester_label: st.column_config.TextColumn(semester_label)
+            for semester_label in semester_labels
+        }
+    )
+    return column_config
+
+
+def _style_state_dataframe(df: pd.DataFrame, semester_labels: list[str]):
+    return df.style.map(_style_state_value, subset=semester_labels)
+
+
+def _style_state_value(value) -> str:
+    state = str(value).strip()
+    if state == "AP":
+        return "background-color: #DCFCE7; color: #166534; font-weight: 700;"
+    if state == "RP":
+        return "background-color: #FEE2E2; color: #7F1D1D; font-weight: 700;"
+    return "background-color: #F1F3F5; color: #4B5563; font-weight: 700;"
+
+
+def _build_practical_max_by_semester(
+    history_df: pd.DataFrame,
+    semester_labels: list[str],
+) -> dict[str, dict[str, float]]:
+    return {
+        semester_label: load_practical_max_map_for_semester(str(source_row["SEMESTRE"]))
+        for semester_label, (_, source_row) in zip(semester_labels, history_df.iterrows(), strict=False)
+    }
+
+
+def _normalize_progress_value(
+    value,
+    source_column: str,
+    semester_label: str,
+    practical_max_by_semester: dict[str, dict[str, float]],
+) -> float:
+    numeric_value = pd.to_numeric(value, errors="coerce")
+    if pd.isna(numeric_value):
+        return numeric_value
+
+    if source_column not in {"TALLERES", "PARTICIPACION"}:
+        return float(numeric_value)
+
+    max_value = practical_max_by_semester.get(semester_label, {}).get(source_column)
+    if max_value is None or max_value <= 0:
+        return float(numeric_value)
+
+    return min(100.0, max(0.0, (float(numeric_value) / float(max_value)) * 100.0))
+
+
+def _format_plain_value(value) -> str:
+    if pd.isna(value):
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return f"{int(value)}"
+    return str(value)

@@ -16,6 +16,16 @@ from src.shared.constants import (
     TOPIC_COLORS,
     EXAM_LABELS,
 )
+from src.shared.filter_state import (
+    FILTER_CAREERS_KEY,
+    FILTER_CAREERS_WIDGET_KEY,
+    FILTER_FACULTIES_KEY,
+    FILTER_FACULTIES_WIDGET_KEY,
+    FILTER_CAREER_TYPES_KEY,
+    FILTER_CAREER_TYPES_WIDGET_KEY,
+    render_shared_multiselect,
+    render_shared_segmented_control,
+)
 from src.shared.utils import (
     apply_filters,
     valid_exam_mask,
@@ -36,7 +46,8 @@ from src.shared.utils import (
 def render_sidebar_single_semester(
     dataset_map: dict[str, Path],
     df: pd.DataFrame,
-) -> tuple[str, list[str], list[str], list, list[str], list[str]]:
+    page_key: str,
+) -> tuple[str, list[str], list[str], list[str], list, list[str], list[str]]:
     """Renderiza el sidebar para una página de semestre individual."""
     from src.shared.utils import get_default_semester
     
@@ -55,16 +66,6 @@ def render_sidebar_single_semester(
         st.session_state.selected_year = int(selected_year_str)
         st.session_state.selected_term = int(selected_term_str)
 
-    career_options = (
-        sorted(df["CARRERA"].dropna().astype(str).unique().tolist())
-        if "CARRERA" in df.columns
-        else []
-    )
-    career_type_options = (
-        sorted(df["CARRERA_TIPO"].dropna().astype(str).unique().tolist())
-        if "CARRERA_TIPO" in df.columns
-        else []
-    )
     sit_options = (
         sorted(df["SIT"].dropna().unique().tolist())
         if "SIT" in df.columns
@@ -82,37 +83,15 @@ def render_sidebar_single_semester(
     )
 
     with st.sidebar:
-        # Usar session_state para mantener las carreras seleccionadas entre páginas
-        if "selected_careers" not in st.session_state:
-            st.session_state.selected_careers = []
+        selected_faculties, selected_career_types, selected_careers = render_shared_academic_filters(df)
 
-        selected_careers = st.multiselect(
-            "Carrera",
-            options=career_options,
-            key="selected_careers",
-        )
-
-        if "selected_career_types" not in st.session_state:
-            st.session_state.selected_career_types = career_type_options
-
-        selected_career_types = st.segmented_control(
-            "Tipo de carrera",
-            options=career_type_options,
-            default=career_type_options,
-            selection_mode="multi",
-        )
-
-        if selected_career_types is None:
-            selected_career_types = []
-
-        selected_sit = st.segmented_control(
+        selected_sit = render_shared_segmented_control(
             "Veces tomada (SIT)",
             options=sit_options,
+            state_key=f"{page_key}_selected_sit",
+            widget_key=f"_{page_key}_selected_sit",
             default=sit_options,
-            selection_mode="multi",
         )
-        if selected_sit is None:
-            selected_sit = []
 
         selected_states = st.segmented_control(
             "Estado",
@@ -125,7 +104,15 @@ def render_sidebar_single_semester(
 
         selected_parallels = st.multiselect("Paralelo", options=parallel_options)
 
-    return selected_semester, selected_careers, selected_career_types, selected_sit, selected_states, selected_parallels
+    return (
+        selected_semester,
+        selected_faculties,
+        selected_careers,
+        selected_career_types,
+        selected_sit,
+        selected_states,
+        selected_parallels,
+    )
 
 
 def render_sidebar_historical(
@@ -145,66 +132,16 @@ def render_sidebar_historical(
             value=(semesters[0], semesters[-1]),
         )
 
-        faculty_options = sorted(df["FACULTAD"].dropna().astype(str).unique().tolist())
-        selected_faculties = st.multiselect(
-            "Facultad",
-            options=faculty_options,
-            default=[],
-        )
-
-        if selected_faculties:
-            careers_source = df[df["FACULTAD"].astype(str).isin(selected_faculties)].copy()
-        else:
-            careers_source = df.copy()
-
-        career_type_options = (
-            sorted(df["CARRERA_TIPO"].dropna().astype(str).unique().tolist())
-            if "CARRERA_TIPO" in df.columns
-            else []
-        )
-
-        career_options = sorted(careers_source["CARRERA"].dropna().astype(str).unique().tolist())
-        
-        # Usar session_state para mantener las carreras seleccionadas entre páginas
-        if "selected_career_types" not in st.session_state:
-            st.session_state.selected_career_types = career_type_options
-
-        selected_career_types = st.segmented_control(
-            "Tipo de carrera",
-            options=career_type_options,
-            default=career_type_options,
-            selection_mode='multi',
-        )
-
-        if selected_career_types is None:
-            selected_career_types = []
-        if "selected_careers" not in st.session_state:
-            st.session_state.selected_careers = []
-
-        # Filtrar defaults válidos (solo los que existen en las opciones actuales)
-        valid_defaults = [c for c in st.session_state.selected_careers if c in career_options]
-        
-        # Actualizar session_state con los defaults válidos
-        if valid_defaults:
-            st.session_state.selected_careers = valid_defaults
-        else:
-            st.session_state.selected_careers = []
-        
-        selected_careers = st.multiselect(
-            "Carrera",
-            options=career_options,
-            key="selected_careers",
-        )
+        selected_faculties, selected_career_types, selected_careers = render_shared_academic_filters(df)
 
         sit_options = sorted(df["SIT"].dropna().unique().tolist())
-        selected_sit = st.segmented_control(
+        selected_sit = render_shared_segmented_control(
             "Veces tomada (SIT)",
             options=sit_options,
+            state_key="tendencias_selected_sit",
+            widget_key="_tendencias_selected_sit",
             default=sit_options,
-            selection_mode='multi',
         )
-        if selected_sit is None:
-            selected_sit = []
 
     semester_start, semester_end = selected_semesters
     semester_range = [
@@ -214,6 +151,58 @@ def render_sidebar_historical(
     ]
 
     return semester_range, selected_faculties, selected_careers, selected_career_types, selected_sit
+
+
+def render_shared_academic_filters(df: pd.DataFrame) -> tuple[list[str], list[str], list[str]]:
+    """Renderiza filtros generales compartidos entre páginas académicas."""
+    faculty_options = (
+        sorted(df["FACULTAD"].dropna().astype(str).unique().tolist())
+        if "FACULTAD" in df.columns
+        else []
+    )
+    career_type_options = (
+        sorted(df["CARRERA_TIPO"].dropna().astype(str).unique().tolist())
+        if "CARRERA_TIPO" in df.columns
+        else []
+    )
+
+    selected_faculties = render_shared_multiselect(
+        "Facultad",
+        options=faculty_options,
+        state_key=FILTER_FACULTIES_KEY,
+        widget_key=FILTER_FACULTIES_WIDGET_KEY,
+    )
+    selected_career_types = render_shared_segmented_control(
+        "Tipo de carrera",
+        options=career_type_options,
+        state_key=FILTER_CAREER_TYPES_KEY,
+        widget_key=FILTER_CAREER_TYPES_WIDGET_KEY,
+        default=career_type_options,
+    )
+
+    careers_source = df.copy()
+    if selected_faculties and "FACULTAD" in careers_source.columns:
+        careers_source = careers_source[
+            careers_source["FACULTAD"].astype(str).isin(selected_faculties)
+        ].copy()
+    if selected_career_types and "CARRERA_TIPO" in careers_source.columns:
+        careers_source = careers_source[
+            careers_source["CARRERA_TIPO"].astype(str).isin(selected_career_types)
+        ].copy()
+
+    career_options = (
+        sorted(careers_source["CARRERA"].dropna().astype(str).unique().tolist())
+        if "CARRERA" in careers_source.columns
+        else []
+    )
+    selected_careers = render_shared_multiselect(
+        "Carrera",
+        options=career_options,
+        state_key=FILTER_CAREERS_KEY,
+        widget_key=FILTER_CAREERS_WIDGET_KEY,
+    )
+
+    return selected_faculties, selected_career_types, selected_careers
 
 
 # ============== Componentes de métricas ==============

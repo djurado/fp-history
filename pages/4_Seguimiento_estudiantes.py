@@ -7,7 +7,7 @@ from src.shared import (
     filter_students_table,
     init_session_state_defaults,
     load_historical_data,
-    render_student_career_filter,
+    render_student_academic_filters,
     render_student_history,
     render_student_table_filters,
     render_students_selector,
@@ -15,6 +15,14 @@ from src.shared import (
 )
 
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
+
+
+def _format_career_scope(selected_careers: list[str]) -> str:
+    if not selected_careers:
+        return "todas las carreras"
+    if len(selected_careers) <= 3:
+        return ", ".join(selected_careers)
+    return f"{', '.join(selected_careers[:3])} y {len(selected_careers) - 3} más"
 
 
 def main() -> None:
@@ -40,8 +48,13 @@ def main() -> None:
         st.warning("No hay carreras disponibles en el histórico.")
         st.stop()
 
-    selected_career = render_student_career_filter(historical_df)
-    students_table = build_students_table(historical_df, selected_career)
+    selected_faculties, selected_career_types, selected_careers = render_student_academic_filters(historical_df)
+    students_table = build_students_table(
+        historical_df,
+        selected_careers=selected_careers,
+        selected_faculties=selected_faculties,
+        selected_career_types=selected_career_types,
+    )
 
     if students_table.empty:
         st.info("No se encontraron estudiantes para los filtros seleccionados.")
@@ -49,7 +62,7 @@ def main() -> None:
 
     selected_attempts, search_query = render_student_table_filters(students_table)
     filtered_table = filter_students_table(students_table, selected_attempts, search_query)
-    title_scope = selected_career if selected_career else "todas las carreras"
+    title_scope = _format_career_scope(selected_careers)
     st.subheader(f"Estudiantes en {title_scope}")
 
     if filtered_table.empty:

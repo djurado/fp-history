@@ -56,6 +56,7 @@ from src.shared.utils import (
 from src.shared.components import (
     render_sidebar_single_semester,
     render_sidebar_historical,
+    render_shared_academic_filters,
     render_main_metrics,
     render_historical_main_metrics,
     build_state_distribution_df,
@@ -77,7 +78,7 @@ from src.shared.components import (
 from src.shared.student_tracking import (
     validate_student_tracking_data,
     build_students_table,
-    render_student_career_filter,
+    render_student_academic_filters,
     render_student_table_filters,
     filter_students_table,
     render_students_selector,

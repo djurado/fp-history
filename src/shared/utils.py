@@ -33,7 +33,7 @@ def extract_semester_name(file_path: Path) -> str:
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
     """Carga un archivo Excel como DataFrame."""
-    return pd.read_excel(path)
+    return enrich_career_metadata(pd.read_excel(path))
 
 
 def get_dataset_map() -> dict[str, Path]:
@@ -79,6 +79,31 @@ def load_careers_catalog() -> pd.DataFrame:
     return careers_df[["COD", "CARRERA", "FACULTAD"]].drop_duplicates()
 
 
+def enrich_career_metadata(df: pd.DataFrame) -> pd.DataFrame:
+    """Agrega metadata de carrera faltante desde el catálogo."""
+    if "COD" not in df.columns:
+        return df
+
+    enriched_df = df.copy()
+    careers_df = load_careers_catalog()
+    faculty_map = careers_df[["COD", "FACULTAD"]].drop_duplicates()
+
+    if "FACULTAD" not in enriched_df.columns:
+        enriched_df = enriched_df.merge(faculty_map, on="COD", how="left")
+    else:
+        missing_facultad_mask = enriched_df["FACULTAD"].isna() | (
+            enriched_df["FACULTAD"].astype(str).str.strip() == ""
+        )
+        if missing_facultad_mask.any():
+            enriched_df = enriched_df.drop(columns=["FACULTAD"]).merge(
+                faculty_map,
+                on="COD",
+                how="left",
+            )
+
+    return enriched_df
+
+
 @st.cache_data
 def load_historical_data() -> pd.DataFrame:
     """Carga todos los datasets históricos en un solo DataFrame."""
@@ -96,27 +121,7 @@ def load_historical_data() -> pd.DataFrame:
 
     historical_df = pd.concat(frames, ignore_index=True)
 
-    careers_df = load_careers_catalog()
-
-    if "FACULTAD" not in historical_df.columns:
-        historical_df = historical_df.merge(
-            careers_df[["COD", "FACULTAD"]],
-            on="COD",
-            how="left",
-        )
-    else:
-        missing_facultad_mask = historical_df["FACULTAD"].isna() | (
-            historical_df["FACULTAD"].astype(str).str.strip() == ""
-        )
-        if missing_facultad_mask.any():
-            faculty_map = careers_df[["COD", "FACULTAD"]].drop_duplicates()
-            historical_df = historical_df.drop(columns=["FACULTAD"]).merge(
-                faculty_map,
-                on="COD",
-                how="left",
-            )
-
-    return historical_df
+    return enrich_career_metadata(historical_df)
 
 
 @st.cache_data
@@ -316,6 +321,7 @@ def sort_semester_frame(df: pd.DataFrame) -> pd.DataFrame:
 
 def apply_filters(
     df: pd.DataFrame,
+    facultades: list[str] | None = None,
     carreras: list[str] | None = None,
     carrera_tipos: list[str] | None = None,
     sit: list | None = None,
@@ -324,6 +330,9 @@ def apply_filters(
 ) -> pd.DataFrame:
     """Aplica filtros al DataFrame."""
     filtered_df = df.copy()
+
+    if facultades and "FACULTAD" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["FACULTAD"].astype(str).isin(facultades)]
 
     if carreras:
         filtered_df = filtered_df[filtered_df["CARRERA"].astype(str).isin(carreras)]
@@ -421,6 +430,12 @@ def init_session_state_defaults() -> None:
         st.session_state.career_sort_order = "total"
     if "indicators_expanded" not in st.session_state:
         st.session_state.indicators_expanded = True
+    if "selected_careers" not in st.session_state:
+        st.session_state.selected_careers = []
+    if "selected_faculties" not in st.session_state:
+        st.session_state.selected_faculties = []
+    if "selected_career_types" not in st.session_state:
+        st.session_state.selected_career_types = None
 
 
 def render_responsive_indicators(
