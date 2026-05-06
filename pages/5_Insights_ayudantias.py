@@ -33,7 +33,12 @@ def main() -> None:
     st.title("Insights de ayudantías")
     st.caption("Análisis de asistencia del semestre 2025-2.")
 
-    attendance_df, classes_df = load_ayudantias_sources()
+    try:
+        attendance_df, classes_df = load_ayudantias_sources()
+    except FileNotFoundError:
+        st.warning("No se encontraron datos para procesar.")
+        st.stop()
+
     issues = validate_ayudantias_sources(attendance_df, classes_df)
 
     if issues:
