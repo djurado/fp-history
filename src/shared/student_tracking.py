@@ -180,7 +180,7 @@ def _build_student_table_column_config() -> dict[str, object]:
         "NOMBRE": st.column_config.TextColumn("Nombre"),
         "ULTIMA_CARRERA": st.column_config.TextColumn("Carrera (*)", help="Última carrera"),
         "ULTIMO_SEMESTRE": st.column_config.TextColumn("Semestre (*)", help="Último semestre"),
-        "ULTIMO_ESTADO": st.column_config.TextColumn("Estado (*)", help="Último Estado"),
+        "ULTIMO_ESTADO": st.column_config.TextColumn("Estado (*)", help="Último estado"),
         "INTENTOS": st.column_config.NumberColumn("Intentos", format="%d", help="Número de veces que el estudiante aparece en el histórico"),
     }
 
@@ -260,16 +260,16 @@ def _render_student_transposed_history_table(history_df: pd.DataFrame) -> None:
             )
 
 
-def _format_binary_bool_value(value) -> bool:
+def _format_binary_bool_value(value) -> str:
     if pd.isna(value):
-        return False
+        return ""
 
     normalized_value = str(value).strip().lower()
     if normalized_value in {"1", "1.0", "sí", "si", "true", "verdadero"}:
-        return True
+        return "✅ Sí"
     if normalized_value in {"0", "0.0", "no", "false", "falso"}:
-        return False
-    return bool(value)
+        return "❌ No"
+    return "✅ Sí" if bool(value) else "❌ No"
 
 
 def _build_unique_semester_labels(history_df: pd.DataFrame) -> list[str]:
@@ -291,6 +291,7 @@ def _build_transposed_history_rows(
             "Resumen",
             [
                 ("Estado", "ESTADO", "state"),
+                ("Paralelo", "PARALELO", "state"),
                 ("Nota final", "NOTA FINAL", "progress"),
                 ("Teórico", "TOTAL TEORICO", "progress"),
                 ("Práctico", "PRACTICO", "progress"),
@@ -369,7 +370,7 @@ def _is_exam_taken(value) -> bool:
         return False
 
     normalized_value = str(value).strip().lower()
-    return normalized_value in {"1", "1.0", "sí", "si", "true", "verdadero"}
+    return normalized_value in {"1", "1.0", "sí", "si", "true", "verdadero", '3', '3.0'}
 
 
 def _render_section_dataframes(
@@ -394,7 +395,7 @@ def _render_section_dataframes(
     )
     if not progress_df.empty:
         st.dataframe(
-            progress_df,
+            _style_progress_dataframe(progress_df, semester_labels),
             width="stretch",
             hide_index=True,
             column_config=_build_progress_column_config(semester_labels),
@@ -453,7 +454,7 @@ def _build_progress_column_config(semester_labels: list[str]) -> dict[str, objec
                 format="%.1f%%",
                 min_value=0,
                 max_value=100,
-                color="green",
+                color="gray",
             )
             for semester_label in semester_labels
         }
@@ -467,10 +468,7 @@ def _build_checkbox_column_config(semester_labels: list[str]) -> dict[str, objec
     }
     column_config.update(
         {
-            semester_label: st.column_config.CheckboxColumn(
-                semester_label,
-                disabled=True,
-            )
+            semester_label: st.column_config.TextColumn(semester_label)
             for semester_label in semester_labels
         }
     )
@@ -494,13 +492,26 @@ def _style_state_dataframe(df: pd.DataFrame, semester_labels: list[str]):
     return df.style.map(_style_state_value, subset=semester_labels)
 
 
+def _style_progress_dataframe(df: pd.DataFrame, semester_labels: list[str]):
+    return df.style.map(_style_progress_value, subset=semester_labels)
+
+
 def _style_state_value(value) -> str:
     state = str(value).strip()
     if state == "AP":
         return "background-color: #DCFCE7; color: #166534; font-weight: 700;"
-    if state == "RP":
+    if state in ["RP", "RT", "PF"]:
         return "background-color: #FEE2E2; color: #7F1D1D; font-weight: 700;"
     return "background-color: #F1F3F5; color: #4B5563; font-weight: 700;"
+
+
+def _style_progress_value(value) -> str:
+    numeric_value = pd.to_numeric(value, errors="coerce")
+    if pd.isna(numeric_value) or numeric_value < 50:
+        return ""
+    if numeric_value < 60:
+        return "background-color: #FEF3C7;"
+    return "background-color: #DCFCE7;"
 
 
 def _build_practical_max_by_semester(
