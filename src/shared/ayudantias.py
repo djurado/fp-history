@@ -120,7 +120,14 @@ def prepare_ayudantias_data(
     classes["DIA_NUM"] = classes["FECHA_DT"].dt.weekday
     classes["DIA"] = classes["DIA_NUM"].map(DAY_LABELS)
     classes["TIPO_DIA"] = classes["DIA_NUM"].map(_classify_day_type)
-    classes["MODALIDAD"] = classes["lugar"].map(classify_modality)
+    classes["MODALIDAD"] = classes.apply(
+        lambda row: classify_modality(
+            place=row["lugar"],
+            hour=row["HORA"],
+            day_number=row["DIA_NUM"],
+        ),
+        axis=1,
+    )
 
     duplicated_attendance_rows = int(
         attendance.duplicated(["FECHA_KEY", "HORA", "AYUDANTE_KEY", "MATRICULA"]).sum()
@@ -146,14 +153,24 @@ def prepare_ayudantias_data(
         how="left",
     )
     attendance["MODALIDAD"] = attendance["MODALIDAD"].fillna("Sin clasificar")
-    attendance["LUGAR"] = attendance["LUGAR"].fillna("Sin registro de lugar")
-    attendance["TEMAS"] = attendance["TEMAS"].fillna("")
-    attendance["RECURSOS"] = attendance["RECURSOS"].fillna("")
-
     attendance_sessions = attendance.drop_duplicates(["FECHA_KEY", "HORA", "AYUDANTE_KEY"])
     unmatched_attendance_sessions = int(
         (attendance_sessions["MODALIDAD"] == "Sin clasificar").sum()
     )
+
+    attendance_virtual_schedule_mask = (
+        attendance["MODALIDAD"].eq("Sin clasificar")
+        & attendance.apply(
+            lambda row: _is_virtual_schedule(row["HORA"], row["DIA_NUM"]),
+            axis=1,
+        )
+    )
+    attendance.loc[attendance_virtual_schedule_mask, "MODALIDAD"] = "Virtual"
+    attendance.loc[attendance["MODALIDAD"].eq("Sin clasificar"), "MODALIDAD"] = "Presencial"
+
+    attendance["LUGAR"] = attendance["LUGAR"].fillna("Sin registro de lugar")
+    attendance["TEMAS"] = attendance["TEMAS"].fillna("")
+    attendance["RECURSOS"] = attendance["RECURSOS"].fillna("")
 
     session_attendance_counts = (
         attendance.groupby(["FECHA_KEY", "HORA", "AYUDANTE_KEY"], dropna=False)
@@ -213,13 +230,13 @@ def build_attendance_by_hour(attendance: pd.DataFrame) -> pd.DataFrame:
         .size()
         .rename("Asistencias")
         .reset_index()
-        .sort_values("HORA", key=lambda serie: serie.map(hour_sort_key))
+        .sort_values("HORA", key=lambda serie: serie.astype(str))
     )
 
 
 def build_attendance_day_hour(attendance: pd.DataFrame) -> pd.DataFrame:
     """Cuenta asistencias por día y hora con grilla completa."""
-    hours = sorted(attendance["HORA"].dropna().unique().tolist(), key=hour_sort_key)
+    hours = sorted(attendance["HORA"].dropna().astype(str).unique().tolist())
     index = pd.MultiIndex.from_product(
         [DAY_ORDER, hours],
         names=["DIA", "HORA"],
@@ -281,23 +298,29 @@ def build_student_attendance_distribution(attendance: pd.DataFrame) -> pd.DataFr
     return students.sort_values("Asistencias", ascending=False)
 
 
-def hour_sort_key(value: object) -> tuple[int, str]:
-    """Ordena horas tipo 09-11 por hora inicial."""
-    value_str = str(value).strip()
-    try:
-        return int(value_str.split("-", maxsplit=1)[0]), value_str
-    except (ValueError, TypeError):
-        return 99, value_str
+def classify_modality(
+    place: object,
+    hour: object | None = None,
+    day_number: object | None = None,
+) -> str:
+    """Clasifica modalidad desde lugar, horario y día de la ayudantía."""
+    if _is_virtual_schedule(hour, day_number):
+        return "Virtual"
 
-
-def classify_modality(place: object) -> str:
-    """Clasifica modalidad desde el lugar de la ayudantía."""
     place_text = str(place).strip().lower()
     if not place_text or place_text == "nan":
         return "Sin clasificar"
     if "virtual" in place_text or "teams" in place_text:
         return "Virtual"
     return "Presencial"
+
+
+def _is_virtual_schedule(hour: object | None, day_number: object | None) -> bool:
+    if str(hour).strip() == "19-21":
+        return True
+
+    numeric_day = pd.to_numeric(day_number, errors="coerce")
+    return pd.notna(numeric_day) and int(numeric_day) >= 5
 
 
 def _prepare_attendance(attendance_df: pd.DataFrame) -> pd.DataFrame:
@@ -404,5 +427,5 @@ def _sort_day_hour_columns(column: pd.Series) -> pd.Series:
     if column.name == "DIA":
         return column.map({day: index for index, day in enumerate(DAY_ORDER)})
     if column.name == "HORA":
-        return column.map(hour_sort_key)
+        return column.astype(str)
     return column

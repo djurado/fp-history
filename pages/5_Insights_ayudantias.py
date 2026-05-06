@@ -13,7 +13,6 @@ from src.shared.ayudantias import (
     build_modality_day_type_comparison,
     build_student_attendance_distribution,
     filter_ayudantias_attendance,
-    hour_sort_key,
     load_ayudantias_sources,
     prepare_ayudantias_data,
     validate_ayudantias_sources,
@@ -71,7 +70,7 @@ def main() -> None:
 def render_filters(attendance):
     min_date = attendance["FECHA_DT"].min().date()
     max_date = attendance["FECHA_DT"].max().date()
-    hour_options = sorted(attendance["HORA"].dropna().unique().tolist(), key=hour_sort_key)
+    hour_options = sorted(attendance["HORA"].dropna().astype(str).unique().tolist())
     modality_options = [value for value in MODALITY_ORDER if value in set(attendance["MODALIDAD"])]
     day_type_options = [value for value in DAY_TYPE_ORDER if value in set(attendance["TIPO_DIA"])]
 
@@ -151,6 +150,7 @@ def render_metrics(attendance) -> None:
 
 def render_attendance_by_hour(attendance) -> None:
     chart_df = build_attendance_by_hour(attendance)
+    hour_order = chart_df["HORA"].astype(str).tolist()
     st.subheader("Asistencias por horario")
     fig = px.bar(
         chart_df,
@@ -158,6 +158,7 @@ def render_attendance_by_hour(attendance) -> None:
         y="Asistencias",
         text="Asistencias",
         color="HORA",
+        category_orders={"HORA": hour_order},
         color_discrete_sequence=px.colors.qualitative.Set2,
     )
     fig.update_traces(textposition="outside", cliponaxis=False)
@@ -165,6 +166,7 @@ def render_attendance_by_hour(attendance) -> None:
         showlegend=False,
         xaxis_title="Horario",
         yaxis_title="Asistencias",
+        xaxis=dict(type="category", categoryorder="array", categoryarray=hour_order),
         margin=dict(t=20, r=20, b=20, l=20),
     )
     st.plotly_chart(fig, width="stretch")
@@ -189,6 +191,7 @@ def render_attendance_day_hour(attendance) -> None:
     fig.update_layout(
         xaxis_title="Horario",
         yaxis_title="Día",
+        xaxis=dict(type="category"),
         margin=dict(t=20, r=20, b=20, l=20),
     )
     st.plotly_chart(fig, width="stretch")
