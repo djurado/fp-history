@@ -124,8 +124,8 @@ cd fp-history
 
 ### 2. Crear entorno virtual
 ```bash
-python -m venv venv
-source venv/bin/activate   # Mac/Linux
+python -m venv .venv
+source .venv/bin/activate   # Mac/Linux
 venv\Scripts\activate      # Windows
 ```
 
