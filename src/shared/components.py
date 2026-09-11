@@ -126,6 +126,19 @@ def render_sidebar_historical(
     with st.sidebar:
         st.header("Filtros")
 
+        show_zero_periods = st.checkbox(
+            "Mostrar periodos 0",
+            value=False,
+            key="tendencias_show_zero_periods",
+            help="Incluye periodos como 2025-0 o 2026-0 en el rango de semestres.",
+        )
+
+        if not show_zero_periods:
+            semesters = [semester for semester in semesters if semester_sort_key(semester)[1] != 0]
+
+        if not semesters:
+            semesters = build_semester_options(df)
+
         selected_semesters = st.select_slider(
             "Rango de semestres",
             options=semesters,

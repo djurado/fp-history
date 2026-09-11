@@ -14,7 +14,7 @@ st.subheader("Carga de datos (ETL)")
 st.info("💡 **Consejo para móvil:** El menú de filtros en las otras páginas está en la barra lateral. Si no lo ves, toca el icono >> en la esquina superior izquierda para abrirlo.")
 
 
-with st.expander("💻 Formato de los archivos Excel", expanded=False):
+with st.expander("💻 Formato de los archivos Excel", expanded=True):
     st.caption(
     "Puedes descargar archivos Excel de prueba desde "
     "[datasets en GitHub](https://github.com/djurado/fp-history/tree/main/datasets/2025_2T)."
@@ -23,20 +23,31 @@ with st.expander("💻 Formato de los archivos Excel", expanded=False):
     """
  ### Instrucciones para reportar sus estadísticas
 
-- **Descargar plantilla:**  [Excel](https://docs.google.com/spreadsheets/d/1Fj7r2YuKUybM-uRL0_CuamUn2ywQsnm9/edit?usp=share_link&ouid=114490585177627308738&rtpof=true&sd=true)
-- **Mantener filas 1 y 2:** no las modifique (encabezado y fila de máximos).  
-- **Un archivo por paralelo:** nombre el archivo con `##` como dos dígitos (ej. 02).  
-- **No cambie la estructura:** conserve todas las columnas.  
-- **Verifique fila 2:** compruebe los puntos máximos y respételos.  
-- **Tipo y formato de columnas:**  
-  - **`REVISADO X ESTUDIANTE`** y **`TRABAJOS_EXTRA`**: 0=Falso o 1=Verdadero (enteros).  
-  - **`PARCIAL`, `FINAL`, `MEJORAMIENTO`, `PRACTICO`**: enteros (sin decimales).  
-  - **`TEMA`, `EXAMEN`, `TALLER`, `PARTICIPACION`**: números con hasta 2 decimales máximo (ej. 8.05 o 7.75).  
-- **Reglas según `ESTADO` de cada Examen** (entero sin decimales):  
+#### Paso 1: Obtener los datos base desde el sistema académico
+- **Descargar el Excel de calificaciones** subido al sistema académico para su paralelo.
+- **Descargar la plantilla:**  [Excel](https://docs.google.com/spreadsheets/d/1Fj7r2YuKUybM-uRL0_CuamUn2ywQsnm9/edit?usp=share_link&ouid=114490585177627308738&rtpof=true&sd=true)
+- **Copiar las columnas idénticas** desde el Excel del sistema académico hacia la plantilla: `MATRICULA`, `NOMBRE_ESTUDIANTE`, `COD`, `SIT`, `PARCIAL`, `FINAL`, `MEJORAMIENTO`, `PRACTICO` y `ESTADO`.
+
+#### Paso 2: Completar la plantilla
+- **Mantener filas 1 y 2:** no las modifique (encabezado y fila de máximos).
+- **Un archivo por paralelo:** nombre el archivo con `##` como dos dígitos (ej. `estadisticas_FP_P02.xlsx`).
+- **No cambie la estructura:** conserve todas las columnas.
+- **Verifique fila 2:** compruebe los puntos máximos y respételos.
+- **Tipo y formato de columnas:**
+  - **`REVISADO X ESTUDIANTE`** y **`TRABAJOS_EXTRA`**: 0=Falso o 1=Verdadero (enteros).
+  - **`PARCIAL`, `FINAL`, `MEJORAMIENTO`, `PRACTICO`**: enteros (sin decimales).
+  - **`TEMA`, `EXAMEN`, `TALLER`, `PARTICIPACION`**: números con hasta 2 decimales máximo (ej. 8.05 o 7.75).
+- **Reglas según `ESTADO` de cada Examen** (entero sin decimales):
   + 1 = Sí se presentó. El **examen y los temas** pueden tener un valor entre 0 y el máximo definido en la fila 2.
   + 2 = No se presentó. El **examen y los temas** deben tener cero (0).
   + 3 = Medida académica (Ej: copia). El **examen y los temas** deben tener cero (0).
-- **Listo para entregar:** verifique que su archivo Excel ha pasado la validación y envíe por correo al coordinador.
+
+#### Paso 3: Subir y validar su archivo en este sistema
+1. Escoja el **Año** y **Semestre** en los selectores de abajo (ej. 2026 - 1).
+2. Suba su archivo en el cuadro **"Sube uno o varios archivos Excel del semestre seleccionado"**.
+3. Dé clic en el botón **Validar archivos**.
+4. Revise el **resultado del archivo** y los **detalles de la revisión**.
+5. **Listo para entregar:** si su archivo pasó la validación, envíelo por correo al coordinador.
     """
     )
 
